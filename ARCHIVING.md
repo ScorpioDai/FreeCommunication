@@ -13,9 +13,6 @@ Generated directories such as `.build`, `dist`, `work`, and `Backend/.venv`
 are ignored by Git. The local backend environment is recreated with
 `./script/setup_backend.sh` and is embedded only when producing an app bundle.
 
-The archived 1.3.2 app and source ZIP remain useful as a snapshot of the last
-model-bundled release. They are not part of the 1.5.0 Git history.
-
 ## First launch
 
 Because models live in `~/Documents/AI Models`, macOS asks for access to the

@@ -290,6 +290,7 @@ final class AppModel: ObservableObject {
 
     func stopSession() {
         guard isRunning else { return }
+        closeSubtitleWindow()
         isRunning = false
         isEndingSession = true
         stopWaveformUpdates()
@@ -467,15 +468,19 @@ final class AppModel: ObservableObject {
 
     func toggleSubtitleWindow() {
         if subtitleWindowVisible {
-            subtitleController?.close()
-            subtitleController = nil
-            subtitleWindowVisible = false
+            closeSubtitleWindow()
         } else {
             let controller = SubtitleWindowController(appModel: self)
             controller.show()
             subtitleController = controller
             subtitleWindowVisible = true
         }
+    }
+
+    private func closeSubtitleWindow() {
+        subtitleController?.close()
+        subtitleController = nil
+        subtitleWindowVisible = false
     }
 
     private func processLiveChunk(_ chunk: CapturedChunk) async {

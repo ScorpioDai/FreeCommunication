@@ -1,43 +1,48 @@
-# FreeCommunication
+# FreeCommunication Project Notes
 
-FreeCommunication 是一款为 Apple Silicon Mac 开发的本地英语实时转录与中文翻译应用。项目使用 SwiftUI 构建 macOS 图形界面，后端通过 Python、MLX 和 PyTorch 在本机运行模型，音频和文字不会上传到云端。
+FreeCommunication is a local-first macOS application for real-time English
+speech recognition and optional Simplified Chinese translation. The macOS UI is
+written in SwiftUI with narrow AppKit interop. Python, MLX, MLX Audio, PyTorch,
+and Transformers provide local inference.
 
-当前保存版本：**1.3.2**
+Current preserved version: **1.5.2**
 
-## 主要功能
+## Release Shape
 
-- 通话模式：同时捕捉系统音频和麦克风。
-- 视频模式：捕捉电脑播放的英语音频。
-- 现场模式：通过麦克风进行现场转录与翻译。
-- 支持正常窗口和半透明字幕窗口。
-- 支持导入常见音频、视频文件，生成转录、翻译和 SRT 字幕。
-- 记录可保存原始音频、英文原文和中文译文，并支持回放与文本定位。
-- 默认记录目录：`~/Documents/FreeCommunication/Recordings`。
+- `dist/FreeCommunication.app` embeds the Python/MLX runtime and portable FFmpeg.
+- `dist/FreeCommunication-1.5.2.dmg` is the drag-to-Applications installer.
+- ASR and NMT model weights are intentionally excluded from both artifacts.
+- The Git repository is the authoritative source archive.
 
-应用内置以下模型：
-
-- ASR：Nemotron Speech Streaming EN 0.6B，MLX 8-bit。
-- NMT：Helsinki-NLP OPUS-MT EN-ZH，使用 PyTorch 权重在 CPU 上翻译。
-
-## 保存的文件
-
-### `FreeCommunication-1.3.2.app.zip`
-
-完整可运行版本，包含 macOS App、Python/MLX 运行环境、ASR 模型、翻译模型和 FFmpeg。解压后可将 `FreeCommunication.app` 放入“应用程序”文件夹。
-
-该版本为本地签名而非 Apple 公证版本。在其他 Mac 上首次打开时，可能需要按住 Control 点击 App 并选择“打开”，同时授予麦克风以及屏幕与系统音频录制权限。
-
-### `FreeCommunication-1.3.2-source.zip`
-
-项目源码归档，包含 Swift/Python 源码、界面资源、构建脚本、锁定的 Python 依赖和便携 FFmpeg。它不单独包含完整 Python 环境和模型权重；当前模型保存在上面的 App ZIP 内。
-
-以后需要修改功能或更换模型时，应同时保留源码 ZIP 和 App ZIP。当前模型可以从解压后的以下目录取出：
+## External Models
 
 ```text
-FreeCommunication.app/Contents/Resources/Models/ASR
-FreeCommunication.app/Contents/Resources/Models/NMT
+~/Documents/AI Models/animaslabs:nemotron-speech-streaming-en-0.6b-mlx-8bit
+~/Documents/AI Models/Helsinki-NLP:opus-mt-en-zh
 ```
 
-## 备注
+The first model provides streaming English ASR on MLX/Metal. The second provides
+English-to-Chinese translation through PyTorch on CPU.
 
-这是经过多轮实际使用和调试后保存的稳定版本。后续更新前建议保留本目录中的两个带版本号 ZIP，新的发行版本也继续采用同样的“可运行包 + 源码包”方式归档。
+Live streaming prefers sentence boundaries and applies stable 36-word or
+240-character paragraph caps when punctuation is absent. Ending a live session
+also closes the floating subtitle window.
+
+## User Data
+
+```text
+~/Documents/FreeCommunication/Recordings
+```
+
+Completed live sessions use folder-backed records containing `transcript.txt`
+and archived `audio.wav`. Imported translated media can also contain
+`subtitles.srt`.
+
+## Preservation
+
+Keep the Git repository, the matching release DMG, and release checksums.
+Generated `.build`, `Backend/.venv`, and `dist` contents can be recreated. Model
+folders may be retained to avoid re-downloading them but are not source code.
+
+See `README.md`, `README.zh-CN.md`, `ARCHIVING.md`, and
+`THIRD_PARTY_NOTICES.md` for full details.

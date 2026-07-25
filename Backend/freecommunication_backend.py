@@ -511,6 +511,73 @@ def coalesce_segments(
     return merged
 
 
+def split_stream_segments(
+    segments: List[Segment],
+    max_words: int = 36,
+    max_chars: int = 240,
+    natural_break_min_words: int = 12,
+) -> List[Segment]:
+    split: List[Segment] = []
+    terminal_pattern = re.compile(r"[.!?。！？](?:[\"')\]}]+)?$")
+
+    for segment in segments:
+        compact = re.sub(r"\s+", " ", segment.source_text).strip()
+        words = compact.split()
+        if not words:
+            continue
+        if len(words) <= max_words and len(compact) <= max_chars:
+            segment.source_text = compact
+            split.append(segment)
+            continue
+
+        boundaries: List[tuple[int, int]] = []
+        cursor = 0
+        while cursor < len(words):
+            hard_end = min(cursor + max_words, len(words))
+            char_count = 0
+            char_end = cursor
+            for index in range(cursor, hard_end):
+                addition = len(words[index]) + (1 if index > cursor else 0)
+                if index > cursor and char_count + addition > max_chars:
+                    break
+                char_count += addition
+                char_end = index + 1
+            hard_end = max(cursor + 1, char_end)
+
+            if hard_end < len(words):
+                search_start = min(cursor + natural_break_min_words, hard_end)
+                natural_ends = [
+                    index + 1
+                    for index in range(search_start - 1, hard_end)
+                    if terminal_pattern.search(words[index])
+                ]
+                if natural_ends:
+                    hard_end = natural_ends[-1]
+
+            boundaries.append((cursor, hard_end))
+            cursor = hard_end
+
+        original_end = segment.end
+        duration = max(0.0, (original_end or segment.start) - segment.start)
+        total_words = len(words)
+        for start_index, end_index in boundaries:
+            start_fraction = start_index / total_words
+            end_fraction = end_index / total_words
+            chunk_start = segment.start + duration * start_fraction
+            chunk_end = segment.start + duration * end_fraction if original_end is not None else None
+            split.append(
+                Segment(
+                    channel=segment.channel,
+                    speaker=segment.speaker,
+                    start=chunk_start,
+                    end=chunk_end,
+                    source_text=" ".join(words[start_index:end_index]),
+                )
+            )
+
+    return split
+
+
 class StreamingASRSession:
     def __init__(self, model: Any, channel: str, offset: float):
         self.model = model
@@ -669,7 +736,9 @@ class StreamingASRSession:
         from mlx_audio.stt.models.nemo.alignment import sentences_to_result, tokens_to_sentences
 
         result = sentences_to_result(tokens_to_sentences(self.hypothesis))
-        return result_segments(result, channel=self.channel, offset=self.offset)
+        return split_stream_segments(
+            result_segments(result, channel=self.channel, offset=self.offset)
+        )
 
     def translate_stable_segments(self, segments: List[Segment], model_dir: Path, final: bool) -> None:
         now = time.monotonic()

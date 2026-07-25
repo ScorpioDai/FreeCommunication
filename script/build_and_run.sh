@@ -4,7 +4,7 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="FreeCommunication"
 BUNDLE_ID="com.scorpiodai.FreeCommunication"
-APP_VERSION="1.5.1"
+APP_VERSION="1.5.2"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,7 +39,11 @@ cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
 if [ -d "$ROOT_DIR/Backend" ]; then
-  rsync -a --delete --exclude '__pycache__' "$ROOT_DIR/Backend/" "$APP_RESOURCES/Backend/"
+  rsync -a --delete \
+    --exclude '__pycache__' \
+    --exclude '/test_*.py' \
+    "$ROOT_DIR/Backend/" \
+    "$APP_RESOURCES/Backend/"
   find "$APP_RESOURCES/Backend" -type d -name '__pycache__' -prune -exec rm -rf {} +
   find "$APP_RESOURCES/Backend" -name '*.pyc' -delete
 fi
@@ -66,6 +70,12 @@ find "$APP_RESOURCES/Backend" -name '*.pyc' -delete
 mkdir -p "$APP_RESOURCES/Tools"
 rsync -a --delete "$FFMPEG_VENDOR/" "$APP_RESOURCES/Tools/"
 chmod +x "$APP_RESOURCES/Tools/ffmpeg"
+
+mkdir -p "$APP_RESOURCES/Licenses"
+for legal_file in LICENSE NOTICE THIRD_PARTY_NOTICES.md; do
+  require_file "$ROOT_DIR/$legal_file"
+  cp "$ROOT_DIR/$legal_file" "$APP_RESOURCES/Licenses/"
+done
 
 if [ -f "$ROOT_DIR/Resources/AppIcon.icns" ]; then
   cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
