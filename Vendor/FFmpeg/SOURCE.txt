@@ -1,0 +1,11 @@
+FFmpeg 8.1.2
+Source: https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz
+License: LGPL version 2.1 or later
+
+Build configuration:
+--arch=arm64 --target-os=darwin --enable-shared --disable-static
+--disable-doc --disable-debug --disable-ffplay --disable-ffprobe
+--disable-network --disable-autodetect --disable-avdevice
+--install-name-dir=@rpath
+
+The reproducible build command is in script/build_portable_ffmpeg.sh.

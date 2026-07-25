@@ -1,0 +1,11 @@
+.DS_Store
+.build/
+.swiftpm/
+Backend/.venv/
+Backend/__pycache__/
+Backend/**/*.pyc
+dist/*
+!dist/.gitkeep
+work/
+backups/
+*.zip

@@ -1,0 +1,9 @@
+mlx
+parakeet-mlx
+mlx-audio
+transformers
+sentencepiece
+torch
+safetensors
+numpy
+sacremoses
