@@ -11,17 +11,19 @@ enum ModelDownloadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidEndpoint:
-            "无法创建 Hugging Face 下载地址。"
+            L10n.string("无法创建 Hugging Face 下载地址。")
         case .invalidResponse:
-            "Hugging Face 返回了无法解析的仓库清单。"
+            L10n.string("Hugging Face 返回了无法解析的仓库清单。")
         case .repositoryUnavailable(let status):
-            "Hugging Face 仓库访问失败（HTTP \(status)）。"
+            L10n.format("Hugging Face 仓库访问失败（HTTP %d）。", status)
         case .unsafePath(let path):
-            "仓库包含不安全的文件路径：\(path)"
+            L10n.format("仓库包含不安全的文件路径：%@", path)
         case .curlFailed(let message):
-            message.isEmpty ? "模型文件下载失败。" : "模型文件下载失败：\(message)"
+            message.isEmpty
+                ? L10n.string("模型文件下载失败。")
+                : L10n.format("模型文件下载失败：%@", message)
         case .sizeMismatch(let file):
-            "下载后的文件大小不正确：\(file)"
+            L10n.format("下载后的文件大小不正确：%@", file)
         }
     }
 }
@@ -78,7 +80,7 @@ final class ModelDownloadService {
 
     func download(
         model: ManagedModel,
-        progress: @escaping (ModelDownloadProgress) -> Void
+        progress: @escaping @MainActor (ModelDownloadProgress) -> Void
     ) async throws {
         let manifest = try await fetchManifest(for: model)
         let files = manifest.siblings.sorted { $0.rfilename < $1.rfilename }
@@ -90,7 +92,7 @@ final class ModelDownloadService {
             return result + (isComplete(destination, expectedBytes: file.byteCount) ? file.byteCount : 0)
         }
 
-        progress(ModelDownloadProgress(
+        await progress(ModelDownloadProgress(
             completedBytes: completedBytes,
             totalBytes: totalBytes,
             currentFile: ""
@@ -143,7 +145,7 @@ final class ModelDownloadService {
                     throw CancellationError()
                 }
                 let partialBytes = fileSize(at: partial)
-                progress(ModelDownloadProgress(
+                await progress(ModelDownloadProgress(
                     completedBytes: completedBytes + min(file.byteCount, partialBytes),
                     totalBytes: totalBytes,
                     currentFile: file.rfilename
@@ -167,7 +169,7 @@ final class ModelDownloadService {
             }
             try fileManager.moveItem(at: partial, to: destination)
             completedBytes += file.byteCount
-            progress(ModelDownloadProgress(
+            await progress(ModelDownloadProgress(
                 completedBytes: completedBytes,
                 totalBytes: totalBytes,
                 currentFile: file.rfilename

@@ -16,7 +16,9 @@ struct RecordsView: View {
             Divider()
 
             detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .task { await library.reload() }
         .sheet(isPresented: $showRename) {
             RenameSheet(title: $renameTitle) {
@@ -31,7 +33,7 @@ struct RecordsView: View {
     private var recordList: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("过往记录")
+                Text(L10n.string("过往记录"))
                     .font(.title2.weight(.semibold))
                 Spacer()
                 Button {
@@ -60,18 +62,18 @@ struct RecordsView: View {
                     }
                     .tag(document.id)
                     .contextMenu {
-                        Button("复制原文") { appModel.copy(document: document, scope: .source) }
-                        Button("复制译文") { appModel.copy(document: document, scope: .translation) }
-                        Button("复制原文+译文") { appModel.copy(document: document, scope: .bilingual) }
+                        Button(L10n.string("复制原文")) { appModel.copy(document: document, scope: .source) }
+                        Button(L10n.string("复制译文")) { appModel.copy(document: document, scope: .translation) }
+                        Button(L10n.string("复制原文+译文")) { appModel.copy(document: document, scope: .bilingual) }
                         Divider()
-                        Button("在访达中显示") {
+                        Button(L10n.string("在访达中显示")) {
                             appModel.reveal(document: document)
                         }
-                        Button("重命名") {
+                        Button(L10n.string("重命名")) {
                             renameTitle = document.title
                             showRename = true
                         }
-                        Button("删除", role: .destructive) {
+                        Button(L10n.string("删除"), role: .destructive) {
                             appModel.delete(document: document)
                         }
                     }
@@ -104,23 +106,23 @@ struct RecordsView: View {
                             }
                         }
                     } label: {
-                        Label("复制", systemImage: "doc.on.doc")
+                        Label(L10n.string("复制"), systemImage: "doc.on.doc")
                     }
                     Button {
                         appModel.reveal(document: document)
                     } label: {
-                        Label("访达", systemImage: "folder")
+                        Label(L10n.string("访达"), systemImage: "folder")
                     }
                     Button {
                         renameTitle = document.title
                         showRename = true
                     } label: {
-                        Label("重命名", systemImage: "pencil")
+                        Label(L10n.string("重命名"), systemImage: "pencil")
                     }
                     Button(role: .destructive) {
                         appModel.delete(document: document)
                     } label: {
-                        Label("删除", systemImage: "trash")
+                        Label(L10n.string("删除"), systemImage: "trash")
                     }
                 }
                 .padding(24)
@@ -140,7 +142,11 @@ struct RecordsView: View {
                 player.load(url: newValue)
             }
         } else {
-            ContentUnavailableView("暂无记录", systemImage: "doc.text", description: Text("结束实时会话或上传文件后，记录会出现在这里。"))
+            ContentUnavailableView(
+                L10n.string("暂无记录"),
+                systemImage: "doc.text",
+                description: Text(L10n.string("结束实时会话或上传文件后，记录会出现在这里。"))
+            )
         }
     }
 }
@@ -246,6 +252,7 @@ struct SyncedTranscriptView: View {
 }
 
 struct SegmentBlockView: View {
+    @EnvironmentObject private var appModel: AppModel
     let segment: TranscriptSegment
     let active: Bool
     let onSelect: () -> Void
@@ -256,7 +263,7 @@ struct SegmentBlockView: View {
                 Circle()
                     .fill(segment.channel.color)
                     .frame(width: 8, height: 8)
-                Text(segment.speaker)
+                Text(L10n.string(segment.speaker, language: appModel.interfaceLanguage))
                     .font(.caption.weight(.medium))
                 Text(segment.timestamp)
                     .font(.system(.caption, design: .monospaced))
@@ -282,20 +289,27 @@ struct SegmentBlockView: View {
 }
 
 struct RenameSheet: View {
+    @EnvironmentObject private var appModel: AppModel
     @Binding var title: String
     let onSave: () -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("重命名记录")
+            Text(L10n.string("重命名记录", language: appModel.interfaceLanguage))
                 .font(.title2.weight(.semibold))
-            TextField("记录名称", text: $title)
+            TextField(
+                L10n.string("记录名称", language: appModel.interfaceLanguage),
+                text: $title
+            )
                 .textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
-                Button("取消") { dismiss() }
-                Button("保存", action: onSave)
+                Button(L10n.string("取消", language: appModel.interfaceLanguage)) { dismiss() }
+                Button(
+                    L10n.string("保存", language: appModel.interfaceLanguage),
+                    action: onSave
+                )
                     .buttonStyle(.borderedProminent)
             }
         }

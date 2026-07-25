@@ -3,7 +3,7 @@
 For version 1.5.0 and later, preserve:
 
 - The Git repository or a source ZIP.
-- The corresponding `FreeCommunication-<version>.app.zip` release artifact.
+- The corresponding `FreeCommunication-<version>.dmg` release artifact.
 
 The model repositories are intentionally separate and can be downloaded again
 from Hugging Face. Existing model folders under `~/Documents/AI Models` may be
@@ -22,5 +22,7 @@ Because models live in `~/Documents/AI Models`, macOS asks for access to the
 Documents folder on first launch. The user must also grant Microphone and
 Screen & System Audio Recording permissions for the relevant capture modes.
 
-Local builds are ad-hoc signed. Developer ID signing and Apple notarization are
-required for a normal internet distribution without a Gatekeeper trust prompt.
+The DMG presents the app beside an Applications shortcut for drag-and-drop
+installation. Local builds are ad-hoc signed. Developer ID signing and Apple
+notarization are required for a normal internet distribution without a
+Gatekeeper trust prompt.

@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "FreeCommunication",
+    defaultLocalization: "zh-Hans",
     platforms: [
         .macOS(.v14)
     ],

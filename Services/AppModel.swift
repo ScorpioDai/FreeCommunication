@@ -13,12 +13,14 @@ final class AppModel: ObservableObject {
     @Published var isProcessingFile = false
     @Published var microphoneEnabled = true
     @Published var backendHealth: BackendHealth = .unknown
-    @Published var statusMessage = "准备就绪"
+    @Published var statusMessage: String
     @Published var lastSavedURL: URL?
     @Published var subtitleWindowVisible = false
     @Published var translationEnabled = true
     @Published var showMissingModelsAlert = false
     @Published private(set) var modelStates: [ManagedModel: ModelInstallState]
+    @Published private(set) var waveformLevels = Array(repeating: 0.0, count: 90)
+    @Published private(set) var interfaceLanguage: InterfaceLanguage
 
     private let backend = BackendClient()
     private let audioCapture = LiveAudioCapture()
@@ -36,21 +38,38 @@ final class AppModel: ObservableObject {
     private var streamPushInFlight = Set<String>()
     private let streamFlushThreshold = 48_000
     private var translationPolicy = LiveTranslationPolicy()
+    private var latestAudioLevels: [SegmentChannel: (level: Double, updatedAt: Date)] = [:]
+    private var waveformUpdateTask: Task<Void, Never>?
 
     init() {
+        let language = L10n.currentLanguage
+        interfaceLanguage = language
+        statusMessage = L10n.string("准备就绪", language: language)
         modelStates = Dictionary(
             uniqueKeysWithValues: ManagedModel.allCases.map {
                 ($0, $0.isInstalled ? .ready : .missing)
             }
         )
+        currentSession.title = L10n.string("实时转录", language: language)
     }
 
     var liveSessionActive: Bool {
         isRunning || isEndingSession
     }
 
+    var modelDownloadsActive: Bool {
+        modelStates.values.contains { $0.isDownloading }
+    }
+
     func attach(library: RecordingLibrary) {
         self.library = library
+    }
+
+    func setInterfaceLanguage(_ language: InterfaceLanguage) {
+        guard interfaceLanguage != language else { return }
+        UserDefaults.standard.set(language.rawValue, forKey: Defaults.interfaceLanguageKey)
+        interfaceLanguage = language
+        statusMessage = L10n.string("界面语言已切换", language: language)
     }
 
     var asrPath: String {
@@ -101,7 +120,7 @@ final class AppModel: ObservableObject {
         refreshModelStates()
         guard !allModelsInstalled else { return }
         showMissingModelsAlert = true
-        statusMessage = "需要先安装语音识别与翻译模型"
+        statusMessage = L10n.string("需要先安装语音识别与翻译模型")
     }
 
     func beginMissingModelDownloads() {
@@ -135,13 +154,13 @@ final class AppModel: ObservableObject {
                     throw ModelDownloadError.sizeMismatch(model.requiredFiles.joined(separator: ", "))
                 }
                 modelStates[model] = .ready
-                statusMessage = "\(model.roleTitle)已安装"
+                statusMessage = L10n.format("%@已安装", model.roleTitle)
                 backendHealth = .unknown
             } catch is CancellationError {
                 modelStates[model] = model.isInstalled ? .ready : .missing
             } catch {
                 modelStates[model] = .failed(error.localizedDescription)
-                statusMessage = "\(model.roleTitle)下载失败"
+                statusMessage = L10n.format("%@下载失败", model.roleTitle)
             }
             modelDownloadTasks[model] = nil
         }
@@ -155,20 +174,27 @@ final class AppModel: ObservableObject {
                 withIntermediateDirectories: true
             )
             NSWorkspace.shared.open(Defaults.modelsDirectory)
-            statusMessage = "已在访达打开模型目录"
+            statusMessage = L10n.string("已在访达打开模型目录")
         } catch {
-            statusMessage = "打开模型目录失败：\(error.localizedDescription)"
+            statusMessage = L10n.format("打开模型目录失败：%@", error.localizedDescription)
         }
     }
 
     func checkBackend() {
+        guard !modelDownloadsActive else {
+            selection = .settings
+            settingsTab = .models
+            statusMessage = L10n.string("模型正在下载，完成后才能检查后端")
+            backendHealth = .warning(L10n.string("请等待两个模型下载完成。"))
+            return
+        }
         guard ensureModelsAvailable() else { return }
         backendHealth = .checking
         Task {
             do {
                 let response = try await backend.check(asrPath: asrPath, nmtPath: nmtPath, pythonPath: pythonPath)
                 let warnings = response.warnings ?? []
-                let message = response.message ?? "模型目录和基础工具检查通过。"
+                let message = response.message ?? L10n.string("模型目录和基础工具检查通过。")
                 backendHealth = warnings.isEmpty ? .ready(message) : .warning(([message] + warnings).joined(separator: "\n"))
             } catch {
                 backendHealth = .failed(error.localizedDescription)
@@ -181,12 +207,14 @@ final class AppModel: ObservableObject {
         guard ensureModelsAvailable() else { return }
         processedChunks.removeAll()
         resetStreamingState()
+        resetWaveform()
+        startWaveformUpdates()
         translationEnabled = true
         translationPolicy.reset()
         currentSession = TranscriptSession(mode: mode, startedAt: Date(), title: "\(mode.title) \(TimeFormatter.recordingName())")
         isPreparingSession = true
         isEndingSession = false
-        statusMessage = "正在加载语音识别与翻译模型..."
+        statusMessage = L10n.string("正在加载语音识别与翻译模型...")
 
         let directory = Defaults.applicationSupportDirectory
             .appendingPathComponent("LiveChunks", isDirectory: true)
@@ -210,9 +238,11 @@ final class AppModel: ObservableObject {
                 let recordingStart = Date()
                 currentSession.startedAt = recordingStart
                 currentSession.title = "\(mode.title) \(TimeFormatter.recordingName(for: recordingStart))"
-                statusMessage = mode.capturesSystemAudio ? "实时流式转录中：系统声音" : "实时流式转录中：麦克风"
-                if microphoneEnabled && mode.capturesMicrophoneByDefault {
-                    statusMessage += " + 麦克风"
+                statusMessage = mode.capturesSystemAudio
+                    ? L10n.string("实时流式转录中：系统声音")
+                    : L10n.string("实时流式转录中：麦克风")
+                if mode.capturesSystemAudio && microphoneEnabled && mode.capturesMicrophoneByDefault {
+                    statusMessage += L10n.string(" + 麦克风")
                 }
                 try await audioCapture.start(
                     mode: mode,
@@ -230,6 +260,11 @@ final class AppModel: ObservableObject {
                         Task { @MainActor in
                             await self?.processLivePCM(packet)
                         }
+                    },
+                    onLevel: { [weak self] channel, level in
+                        Task { @MainActor in
+                            self?.updateWaveform(channel: channel, level: level)
+                        }
                     }
                 )
                 isPreparingSession = false
@@ -242,10 +277,11 @@ final class AppModel: ObservableObject {
                 }
                 _ = await audioCapture.stop()
                 resetStreamingState()
+                stopWaveformUpdates()
                 isPreparingSession = false
                 isRunning = false
                 isEndingSession = false
-                statusMessage = "流式启动失败：\(error.localizedDescription)"
+                statusMessage = L10n.format("流式启动失败：%@", error.localizedDescription)
                 backendHealth = .warning(error.localizedDescription)
                 NSLog("FreeCommunication live engine: streaming failed %@", error.localizedDescription)
             }
@@ -256,13 +292,14 @@ final class AppModel: ObservableObject {
         guard isRunning else { return }
         isRunning = false
         isEndingSession = true
-        statusMessage = "正在停止音频捕捉..."
+        stopWaveformUpdates()
+        statusMessage = L10n.string("正在停止音频捕捉...")
         NSLog("FreeCommunication live engine: stop requested")
         Task {
             let finalChunks = await audioCapture.stop()
             NSLog("FreeCommunication live engine: audio capture stopped chunks=%ld", finalChunks.count)
             if liveStreamingActive {
-                statusMessage = "正在完成最后一段转录..."
+                statusMessage = L10n.string("正在完成最后一段转录...")
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 await flushAllStreamingChannels(final: true)
                 if let streamingSessionID {
@@ -275,20 +312,20 @@ final class AppModel: ObservableObject {
             }
             resetStreamingState()
             currentSession.endedAt = Date()
-            statusMessage = "正在写入记录..."
+            statusMessage = L10n.string("正在写入记录...")
             do {
                 if let url = try await library?.save(session: currentSession, audioChunks: finalChunks) {
                     lastSavedURL = url
-                    statusMessage = "已保存到 \(recordDisplayName(for: url))"
+                    statusMessage = L10n.format("已保存到 %@", recordDisplayName(for: url))
                     await library?.reload()
                     currentSession = TranscriptSession(mode: mode, startedAt: Date(), title: mode.title)
                     translationEnabled = true
                     translationPolicy.reset()
                 } else {
-                    statusMessage = "记录库尚未准备好。"
+                    statusMessage = L10n.string("记录库尚未准备好。")
                 }
             } catch {
-                statusMessage = "保存失败：\(error.localizedDescription)"
+                statusMessage = L10n.format("保存失败：%@", error.localizedDescription)
             }
             isEndingSession = false
             NSLog("FreeCommunication live engine: stop finished")
@@ -302,7 +339,7 @@ final class AppModel: ObservableObject {
         Task {
             do {
                 try await audioCapture.setMicrophoneEnabled(microphoneEnabled)
-                statusMessage = microphoneEnabled ? "麦克风已开启" : "麦克风已关闭"
+                statusMessage = L10n.string(microphoneEnabled ? "麦克风已开启" : "麦克风已关闭")
             } catch {
                 statusMessage = error.localizedDescription
             }
@@ -314,7 +351,7 @@ final class AppModel: ObservableObject {
         let boundary = max(0, Date().timeIntervalSince(currentSession.startedAt))
         translationPolicy.setEnabled(enabled, at: boundary)
         translationEnabled = enabled
-        statusMessage = enabled ? "翻译已开启，实时转录继续" : "翻译已关闭，实时转录继续"
+        statusMessage = L10n.string(enabled ? "翻译已开启，实时转录继续" : "翻译已关闭，实时转录继续")
         NSLog(
             "FreeCommunication live engine: translation %@ at %.3f",
             enabled ? "enabled" : "disabled",
@@ -335,7 +372,9 @@ final class AppModel: ObservableObject {
         guard ensureModelsAvailable() else { return }
         isProcessingFile = true
         selection = .files
-        statusMessage = translate ? "正在转录并翻译 \(url.lastPathComponent)" : "正在转录 \(url.lastPathComponent)"
+        statusMessage = translate
+            ? L10n.format("正在转录并翻译 %@", url.lastPathComponent)
+            : L10n.format("正在转录 %@", url.lastPathComponent)
         Task {
             do {
                 let response = try await backend.transcribeFile(
@@ -353,14 +392,14 @@ final class AppModel: ObservableObject {
                 if let path = response.record_path {
                     let url = URL(fileURLWithPath: path)
                     lastSavedURL = url
-                    statusMessage = "已保存 \(recordDisplayName(for: url))"
+                    statusMessage = L10n.format("已保存 %@", recordDisplayName(for: url))
                 } else {
-                    statusMessage = "处理完成"
+                    statusMessage = L10n.string("处理完成")
                 }
                 await library?.reload()
             } catch {
                 isProcessingFile = false
-                statusMessage = "处理失败：\(error.localizedDescription)"
+                statusMessage = L10n.format("处理失败：%@", error.localizedDescription)
             }
         }
     }
@@ -398,7 +437,7 @@ final class AppModel: ObservableObject {
             try library?.rename(document, to: title)
             Task { await library?.reload() }
         } catch {
-            statusMessage = "重命名失败：\(error.localizedDescription)"
+            statusMessage = L10n.format("重命名失败：%@", error.localizedDescription)
         }
     }
 
@@ -407,7 +446,7 @@ final class AppModel: ObservableObject {
             try library?.delete(document)
             Task { await library?.reload() }
         } catch {
-            statusMessage = "删除失败：\(error.localizedDescription)"
+            statusMessage = L10n.format("删除失败：%@", error.localizedDescription)
         }
     }
 
@@ -415,15 +454,15 @@ final class AppModel: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: Defaults.recordingsDirectory, withIntermediateDirectories: true)
             NSWorkspace.shared.open(Defaults.recordingsDirectory)
-            statusMessage = "已在访达打开记录目录"
+            statusMessage = L10n.string("已在访达打开记录目录")
         } catch {
-            statusMessage = "打开记录目录失败：\(error.localizedDescription)"
+            statusMessage = L10n.format("打开记录目录失败：%@", error.localizedDescription)
         }
     }
 
     func reveal(document: RecordingDocument) {
         NSWorkspace.shared.activateFileViewerSelecting([document.url])
-        statusMessage = "已在访达中显示记录"
+        statusMessage = L10n.string("已在访达中显示记录")
     }
 
     func toggleSubtitleWindow() {
@@ -474,10 +513,10 @@ final class AppModel: ObservableObject {
             if !nonEmpty.isEmpty {
                 appendLiveSegments(nonEmpty)
                 applyCallEchoSuppression()
-                statusMessage = "已更新 \(nonEmpty.count) 条转录"
+                statusMessage = L10n.format("已更新 %d 条转录", nonEmpty.count)
             }
         } catch {
-            statusMessage = "分片处理失败：\(error.localizedDescription)"
+            statusMessage = L10n.format("分片处理失败：%@", error.localizedDescription)
         }
     }
 
@@ -497,6 +536,48 @@ final class AppModel: ObservableObject {
         if (streamPendingPCM[key]?.count ?? 0) >= streamFlushThreshold {
             await flushStreamingChannel(packet.channel, final: false)
         }
+    }
+
+    private func updateWaveform(channel: SegmentChannel, level: Double) {
+        guard isRunning || isPreparingSession else { return }
+        latestAudioLevels[channel] = (min(1, max(0, level)), Date())
+    }
+
+    private func sampleWaveform() {
+        let now = Date()
+        let recentLevels = latestAudioLevels.values
+            .filter { now.timeIntervalSince($0.updatedAt) < 0.4 }
+            .map(\.level)
+        let measured = recentLevels.max() ?? 0
+        let previous = waveformLevels.last ?? 0
+        let visualLevel = measured >= previous ? measured : max(measured, previous * 0.72)
+        waveformLevels.removeFirst()
+        waveformLevels.append(visualLevel)
+    }
+
+    private func startWaveformUpdates() {
+        waveformUpdateTask?.cancel()
+        waveformUpdateTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 65_000_000)
+                guard let self else { return }
+                sampleWaveform()
+            }
+        }
+    }
+
+    private func stopWaveformUpdates() {
+        waveformUpdateTask?.cancel()
+        waveformUpdateTask = nil
+        latestAudioLevels.removeAll()
+        waveformLevels = Array(repeating: 0, count: 90)
+    }
+
+    private func resetWaveform() {
+        waveformUpdateTask?.cancel()
+        waveformUpdateTask = nil
+        waveformLevels = Array(repeating: 0, count: 90)
+        latestAudioLevels.removeAll()
     }
 
     private func flushAllStreamingChannels(final: Bool) async {
@@ -558,10 +639,12 @@ final class AppModel: ObservableObject {
                 elapsedMilliseconds
             )
             if count > 0 {
-                statusMessage = final ? "流式转录已完成" : "实时流式更新 \(count) 条转录"
+                statusMessage = final
+                    ? L10n.string("流式转录已完成")
+                    : L10n.format("实时流式更新 %d 条转录", count)
             }
         } catch {
-            statusMessage = "流式处理失败：\(error.localizedDescription)"
+            statusMessage = L10n.format("流式处理失败：%@", error.localizedDescription)
         }
     }
 
@@ -723,6 +806,12 @@ final class AppModel: ObservableObject {
 
     private func ensureModelsAvailable() -> Bool {
         refreshModelStates()
+        guard !modelDownloadsActive else {
+            selection = .settings
+            settingsTab = .models
+            statusMessage = L10n.string("模型正在下载，请等待完成")
+            return false
+        }
         guard allModelsInstalled else {
             requestMissingModelsPrompt()
             return false

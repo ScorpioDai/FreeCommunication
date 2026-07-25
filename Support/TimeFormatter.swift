@@ -8,10 +8,18 @@ enum TimeFormatter {
         return formatter
     }()
 
-    private static let displayFormatter: DateFormatter = {
+    private static let chineseDisplayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "MM月dd日 HH:mm"
+        return formatter
+    }()
+
+    private static let englishDisplayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = InterfaceLanguage.english.locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
         return formatter
     }()
 
@@ -20,7 +28,12 @@ enum TimeFormatter {
     }
 
     static func recordingDate(_ date: Date) -> String {
-        displayFormatter.string(from: date)
+        switch L10n.currentLanguage {
+        case .simplifiedChinese:
+            chineseDisplayFormatter.string(from: date)
+        case .english:
+            englishDisplayFormatter.string(from: date)
+        }
     }
 
     static func shortClock(_ interval: TimeInterval) -> String {

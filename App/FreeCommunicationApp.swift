@@ -24,28 +24,28 @@ struct FreeCommunicationApp: App {
                 }
         }
         .commands {
-            CommandMenu("转录") {
-                Button(appModel.isRunning ? "结束" : "开始") {
+            CommandMenu(L10n.string("转录")) {
+                Button(L10n.string(appModel.isRunning ? "结束" : "开始")) {
                     appModel.isRunning ? appModel.stopSession() : appModel.startSession()
                 }
                 .keyboardShortcut(.space, modifiers: [.command])
 
-                Button("字幕模式") {
+                Button(L10n.string("字幕模式")) {
                     appModel.toggleSubtitleWindow()
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
 
-                Button(appModel.translationEnabled ? "关闭翻译" : "开启翻译") {
+                Button(L10n.string(appModel.translationEnabled ? "关闭翻译" : "开启翻译")) {
                     appModel.toggleTranslation()
                 }
                 .disabled(!appModel.liveSessionActive)
 
                 Divider()
 
-                Button("复制原文") { appModel.copyCurrent(.source) }
+                Button(L10n.string("复制原文")) { appModel.copyCurrent(.source) }
                     .keyboardShortcut("c", modifiers: [.command, .option])
-                Button("复制译文") { appModel.copyCurrent(.translation) }
-                Button("复制原文+译文") { appModel.copyCurrent(.bilingual) }
+                Button(L10n.string("复制译文")) { appModel.copyCurrent(.translation) }
+                Button(L10n.string("复制原文+译文")) { appModel.copyCurrent(.bilingual) }
             }
         }
 

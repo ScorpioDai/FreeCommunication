@@ -54,9 +54,9 @@ struct LiveView: View {
 
     private var setupTitle: String {
         if appModel.isPreparingSession {
-            return "正在准备流式转录..."
+            return L10n.string("正在准备流式转录...")
         }
-        return "选择一种沟通场景"
+        return L10n.string("选择一种沟通场景")
     }
 
     private var modeGrid: some View {
@@ -66,6 +66,7 @@ struct LiveView: View {
                     appModel.setMode(mode)
                 } label: {
                     ModeCard(mode: mode, isSelected: appModel.mode == mode)
+                        .id(appModel.interfaceLanguage)
                 }
                 .buttonStyle(.plain)
                 .disabled(appModel.isRunning || appModel.isPreparingSession)
@@ -84,14 +85,18 @@ struct LiveView: View {
                     Button {
                         appModel.toggleMicrophone()
                     } label: {
-                        Label(appModel.microphoneEnabled ? "麦克风开启" : "麦克风关闭",
+                        Label(L10n.string(appModel.microphoneEnabled ? "麦克风开启" : "麦克风关闭"),
                               systemImage: appModel.microphoneEnabled ? "mic.fill" : "mic.slash.fill")
                     }
                     .buttonStyle(.bordered)
                 }
             }
 
-            WaveformStrip(isActive: appModel.isRunning, tint: appModel.mode.tint)
+            WaveformStrip(
+                levels: appModel.waveformLevels,
+                isActive: appModel.isRunning,
+                tint: appModel.mode.tint
+            )
                 .frame(height: 70)
 
             if appModel.currentSession.segments.isEmpty {
@@ -125,11 +130,11 @@ struct LiveView: View {
     private var activeTitle: String {
         switch appModel.mode {
         case .call:
-            "正在通话转录..."
+            L10n.string("正在通话转录...")
         case .video:
-            "正在音/视频录音..."
+            L10n.string("正在音/视频录音...")
         case .field:
-            "正在现场沟通..."
+            L10n.string("正在现场沟通...")
         }
     }
 
@@ -143,23 +148,27 @@ struct LiveView: View {
                     get: { appModel.translationEnabled },
                     set: { appModel.setTranslationEnabled($0) }
                 )) {
-                    Label("翻译", systemImage: "character.book.closed")
+                    Label(L10n.string("翻译"), systemImage: "character.book.closed")
                 }
                 .toggleStyle(.switch)
-                .help(appModel.translationEnabled ? "关闭英译中" : "开启英译中")
+                .help(L10n.string(appModel.translationEnabled ? "关闭英译中" : "开启英译中"))
 
                 if appModel.mode.capturesMicrophoneByDefault {
                     Button {
                         appModel.toggleMicrophone()
                     } label: {
-                        Label(appModel.microphoneEnabled ? "麦克风开启" : "麦克风关闭",
+                        Label(L10n.string(appModel.microphoneEnabled ? "麦克风开启" : "麦克风关闭"),
                               systemImage: appModel.microphoneEnabled ? "mic.fill" : "mic.slash.fill")
                     }
                     .buttonStyle(.bordered)
                 }
             }
 
-            WaveformStrip(isActive: appModel.isRunning, tint: appModel.mode.tint)
+            WaveformStrip(
+                levels: appModel.waveformLevels,
+                isActive: appModel.isRunning,
+                tint: appModel.mode.tint
+            )
                 .frame(height: 70)
 
             if appModel.currentSession.segments.isEmpty {
@@ -181,7 +190,7 @@ struct LiveView: View {
             Button {
                 appModel.startSession()
             } label: {
-                Label(appModel.isPreparingSession ? "加载模型" : "开始",
+                Label(L10n.string(appModel.isPreparingSession ? "加载模型" : "开始"),
                       systemImage: appModel.isPreparingSession ? "hourglass" : "play.fill")
                     .frame(minWidth: 110)
             }
@@ -200,7 +209,12 @@ struct LiveView: View {
             Button {
                 appModel.toggleSubtitleWindow()
             } label: {
-                Label("字幕模式", systemImage: appModel.subtitleWindowVisible ? "rectangle.on.rectangle.slash" : "rectangle.on.rectangle")
+                Label(
+                    L10n.string("字幕模式"),
+                    systemImage: appModel.subtitleWindowVisible
+                        ? "rectangle.on.rectangle.slash"
+                        : "rectangle.on.rectangle"
+                )
             }
             .buttonStyle(.borderless)
 
@@ -217,7 +231,7 @@ struct LiveView: View {
                 Button {
                     appModel.toggleMicrophone()
                 } label: {
-                    Label(appModel.microphoneEnabled ? "麦克风" : "麦克风关闭",
+                    Label(L10n.string(appModel.microphoneEnabled ? "麦克风" : "麦克风关闭"),
                           systemImage: appModel.microphoneEnabled ? "mic.fill" : "mic.slash.fill")
                 }
                 .buttonStyle(.borderless)
@@ -228,7 +242,7 @@ struct LiveView: View {
             Button {
                 appModel.stopSession()
             } label: {
-                Label(appModel.isEndingSession ? "保存中" : "结束", systemImage: "stop.fill")
+                Label(L10n.string(appModel.isEndingSession ? "保存中" : "结束"), systemImage: "stop.fill")
                     .frame(minWidth: 120)
             }
             .buttonStyle(.borderedProminent)
@@ -296,6 +310,7 @@ struct ModeCard: View {
 }
 
 struct StatusPill: View {
+    @EnvironmentObject private var appModel: AppModel
     let isRunning: Bool
     let isPreparing: Bool
 
@@ -321,32 +336,31 @@ struct StatusPill: View {
     }
 
     private var statusText: String {
-        if isRunning { return "录制中" }
-        if isPreparing { return "加载中" }
-        return "待机"
+        if isRunning { return L10n.string("录制中", language: appModel.interfaceLanguage) }
+        if isPreparing { return L10n.string("加载中", language: appModel.interfaceLanguage) }
+        return L10n.string("待机", language: appModel.interfaceLanguage)
     }
 }
 
 struct WaveformStrip: View {
+    let levels: [Double]
     let isActive: Bool
     let tint: Color
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.08, paused: !isActive)) { timeline in
-            Canvas { context, size in
-                let columns = 90
-                let midY = size.height / 2
-                let phase = timeline.date.timeIntervalSinceReferenceDate
-                let color = tint.opacity(isActive ? 0.9 : 0.35)
-                for index in 0..<columns {
-                    let x = CGFloat(index) / CGFloat(columns - 1) * size.width
-                    let wave = abs(sin(Double(index) * 0.42 + phase * 4.0))
-                    let height = CGFloat(8 + wave * 46)
-                    var path = Path()
-                    path.move(to: CGPoint(x: x, y: midY - height / 2))
-                    path.addLine(to: CGPoint(x: x, y: midY + height / 2))
-                    context.stroke(path, with: .color(color), lineWidth: 2)
-                }
+        Canvas { context, size in
+            let displayedLevels = levels.isEmpty ? [0] : levels
+            let midY = size.height / 2
+            let color = tint.opacity(isActive ? 0.9 : 0.35)
+            for (index, level) in displayedLevels.enumerated() {
+                let denominator = max(1, displayedLevels.count - 1)
+                let x = CGFloat(index) / CGFloat(denominator) * size.width
+                let normalized = min(1, max(0, level))
+                let height = max(4, CGFloat(normalized) * size.height * 0.86)
+                var path = Path()
+                path.move(to: CGPoint(x: x, y: midY - height / 2))
+                path.addLine(to: CGPoint(x: x, y: midY + height / 2))
+                context.stroke(path, with: .color(color), lineWidth: 2)
             }
         }
         .padding(.horizontal, 12)
@@ -355,14 +369,19 @@ struct WaveformStrip: View {
 }
 
 struct EmptyTranscriptView: View {
+    @EnvironmentObject private var appModel: AppModel
+
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "text.bubble")
                 .font(.system(size: 42))
                 .foregroundStyle(.secondary)
-            Text("转录内容会显示在这里")
+            Text(L10n.string("转录内容会显示在这里", language: appModel.interfaceLanguage))
                 .font(.headline)
-            Text("首次使用请在设置中检查 Python 环境和模型目录。")
+            Text(L10n.string(
+                "首次使用请在设置中检查 Python 环境和模型目录。",
+                language: appModel.interfaceLanguage
+            ))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -413,6 +432,7 @@ struct TranscriptListView: View {
 }
 
 struct TranscriptSegmentView: View {
+    @EnvironmentObject private var appModel: AppModel
     let segment: TranscriptSegment
     let fontSize: Double
 
@@ -422,7 +442,7 @@ struct TranscriptSegmentView: View {
                 Circle()
                     .fill(segment.channel.color)
                     .frame(width: 8, height: 8)
-                Text(segment.speaker)
+                Text(L10n.string(segment.speaker, language: appModel.interfaceLanguage))
                 Text(segment.timestamp)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
@@ -431,13 +451,19 @@ struct TranscriptSegmentView: View {
 
             if !segment.sourceText.isEmpty {
                 Text(segment.sourceText)
-                    .font(.system(size: max(14, fontSize * 0.82), weight: .regular))
+                    .font(.system(
+                        size: TranscriptTypography.sourceSize(for: fontSize),
+                        weight: .regular
+                    ))
                     .foregroundStyle(.primary)
                     .textSelection(.enabled)
             }
             if !segment.translatedText.isEmpty {
                 Text(segment.translatedText)
-                    .font(.system(size: max(16, fontSize * 0.94), weight: .medium))
+                    .font(.system(
+                        size: TranscriptTypography.translationSize(for: fontSize),
+                        weight: .medium
+                    ))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .transition(.opacity.combined(with: .move(edge: .top)))

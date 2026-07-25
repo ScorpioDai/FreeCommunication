@@ -19,7 +19,7 @@ final class RecordingLibrary: ObservableObject {
                 .compactMap(loadDocument)
                 .sorted { $0.createdAt > $1.createdAt }
             documents = loaded
-            if selection == nil {
+            if selection == nil || !loaded.contains(where: { $0.id == selection }) {
                 selection = loaded.first?.id
             }
         } catch {

@@ -1,6 +1,7 @@
 import Foundation
 
 enum SettingsTab: String, Hashable {
+    case general
     case models
     case recording
     case subtitles
@@ -14,8 +15,8 @@ enum ManagedModel: String, CaseIterable, Identifiable, Hashable, Sendable {
 
     var roleTitle: String {
         switch self {
-        case .asr: "语音识别模型"
-        case .nmt: "英译中模型"
+        case .asr: L10n.string("语音识别模型")
+        case .nmt: L10n.string("英译中模型")
         }
     }
 

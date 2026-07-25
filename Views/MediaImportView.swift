@@ -6,16 +6,16 @@ struct MediaImportView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("上传英语音视频")
+                Text(L10n.string("上传英语音视频"))
                     .font(.system(size: 32, weight: .semibold))
-                Text("支持常见音频和视频格式，后端会用 ffmpeg 转成 16kHz 音频后再转录。")
+                Text(L10n.string("支持常见音频和视频格式，后端会用 ffmpeg 转成 16kHz 音频后再转录。"))
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 16) {
                 ImportActionCard(
-                    title: "转录",
-                    subtitle: "只生成英文原文记录",
+                    title: L10n.string("转录", language: appModel.interfaceLanguage),
+                    subtitle: L10n.string("只生成英文原文记录", language: appModel.interfaceLanguage),
                     systemImage: "text.bubble",
                     tint: .blue
                 ) {
@@ -23,8 +23,8 @@ struct MediaImportView: View {
                 }
 
                 ImportActionCard(
-                    title: "转录+翻译",
-                    subtitle: "生成 txt 与 srt 字幕文件",
+                    title: L10n.string("转录+翻译", language: appModel.interfaceLanguage),
+                    subtitle: L10n.string("生成 txt 与 srt 字幕文件", language: appModel.interfaceLanguage),
                     systemImage: "character.book.closed",
                     tint: .green
                 ) {
@@ -33,7 +33,7 @@ struct MediaImportView: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                Label("输出位置", systemImage: "folder")
+                Label(L10n.string("输出位置"), systemImage: "folder")
                     .font(.headline)
                 Button {
                     appModel.openRecordingsDirectory()

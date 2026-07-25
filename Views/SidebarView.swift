@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SidebarView: View {
+    @EnvironmentObject private var appModel: AppModel
     @Binding var selection: SidebarSection
 
     var body: some View {
@@ -13,6 +14,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .id(appModel.interfaceLanguage)
         .safeAreaInset(edge: .top) {
             VStack(alignment: .leading, spacing: 10) {
                 Image(nsImage: NSApp.applicationIconImage)
@@ -22,7 +24,7 @@ struct SidebarView: View {
                 Text("FreeCommunication")
                     .font(.headline)
                     .lineLimit(1)
-                Text("本地英文转录与中文翻译")
+                Text(L10n.string("本地英文转录与中文翻译"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

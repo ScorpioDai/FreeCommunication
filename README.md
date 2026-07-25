@@ -3,7 +3,7 @@
 FreeCommunication is a local-first macOS app for real-time English
 transcription and English-to-Chinese translation.
 
-Current version: **1.5.0**
+Current version: **1.5.1**
 
 ## Features
 
@@ -12,6 +12,9 @@ Current version: **1.5.0**
 - Field mode captures the microphone only.
 - Translation can be turned on or off during any live session without
   restarting ASR. The translation model remains loaded for instant resumption.
+- Live waveforms reflect the captured PCM level and settle when audio is silent.
+- The interface defaults to Simplified Chinese and can switch between Chinese
+  and English immediately without restarting the app.
 - A resizable floating subtitle window supports opacity and font-size controls.
 - Imported audio and video can be transcribed, or transcribed and translated.
 - Recordings include searchable text, audio playback, and SRT subtitles where
@@ -57,6 +60,12 @@ Build and launch the release app:
 
 ```bash
 ./script/build_and_run.sh
+```
+
+Create the drag-to-Applications disk image:
+
+```bash
+./script/package_dmg.sh
 ```
 
 The app is staged at `dist/FreeCommunication.app`. The build embeds the local

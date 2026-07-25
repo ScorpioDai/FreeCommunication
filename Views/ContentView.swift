@@ -28,15 +28,16 @@ struct ContentView: View {
                 }
             }
         }
-        .alert("需要安装模型", isPresented: $appModel.showMissingModelsAlert) {
-            Button("稍后", role: .cancel) {
+        .alert(L10n.string("需要安装模型"), isPresented: $appModel.showMissingModelsAlert) {
+            Button(L10n.string("稍后"), role: .cancel) {
                 appModel.showMissingModelsAlert = false
             }
-            Button("下载模型") {
+            Button(L10n.string("下载模型")) {
                 appModel.beginMissingModelDownloads()
             }
         } message: {
-            Text("实时转录需要语音识别与英译中模型。是否前往设置并从 Hugging Face 下载？")
+            Text(L10n.string("实时转录需要语音识别与英译中模型。是否前往设置并从 Hugging Face 下载？"))
         }
+        .environment(\.locale, appModel.interfaceLanguage.locale)
     }
 }

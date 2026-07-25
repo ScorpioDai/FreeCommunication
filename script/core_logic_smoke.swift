@@ -4,6 +4,8 @@ enum CoreLogicSmokeError: LocalizedError {
     case unexpectedPath(String)
     case translationPolicy
     case missingRemoteFile(String)
+    case typography
+    case audioLevel
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +15,10 @@ enum CoreLogicSmokeError: LocalizedError {
             "Live translation policy produced an invalid result."
         case .missingRemoteFile(let file):
             "Hugging Face manifest is missing: \(file)"
+        case .typography:
+            "Transcript typography is inconsistent."
+        case .audioLevel:
+            "Audio level meter produced an invalid result."
         }
     }
 }
@@ -40,6 +46,19 @@ struct CoreLogicSmoke {
             throw CoreLogicSmokeError.translationPolicy
         }
 
+        guard TranscriptTypography.sourceSize(for: 24) == 19.68,
+              TranscriptTypography.translationSize(for: 24) == 22.56 else {
+            throw CoreLogicSmokeError.typography
+        }
+
+        let silence = Data(count: 512 * MemoryLayout<Float>.size)
+        let loudSamples = [Float](repeating: 0.5, count: 512)
+        let loudPCM = loudSamples.withUnsafeBytes { Data($0) }
+        guard AudioLevelMeter.normalizedLevel(fromFloat32PCM: silence) == 0,
+              AudioLevelMeter.normalizedLevel(fromFloat32PCM: loudPCM) > 0.8 else {
+            throw CoreLogicSmokeError.audioLevel
+        }
+
         let service = ModelDownloadService()
         for model in ManagedModel.allCases {
             let manifest = try await service.fetchManifest(for: model)
@@ -54,6 +73,7 @@ struct CoreLogicSmoke {
 
             if ProcessInfo.processInfo.environment["FREECOMMUNICATION_SMOKE_DOWNLOAD"] == "1" {
                 try await service.download(model: model) { progress in
+                    MainActor.preconditionIsolated()
                     if progress.completedBytes == progress.totalBytes {
                         print("\(model.repositoryID): download resume check complete")
                     }

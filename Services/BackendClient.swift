@@ -30,10 +30,10 @@ enum BackendClientError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .scriptMissing: "找不到后端脚本。"
-        case .processUnavailable: "后端进程不可用。"
+        case .scriptMissing: L10n.string("找不到后端脚本。")
+        case .processUnavailable: L10n.string("后端进程不可用。")
         case .backend(let message): message
-        case .badResponse: "后端返回了无法解析的数据。"
+        case .badResponse: L10n.string("后端返回了无法解析的数据。")
         }
     }
 }
@@ -319,7 +319,10 @@ final class BackendClient {
             if response.ok {
                 complete(id: id, result: .success(response))
             } else {
-                complete(id: id, result: .failure(BackendClientError.backend(response.error ?? "后端执行失败。")))
+                complete(
+                    id: id,
+                    result: .failure(BackendClientError.backend(response.error ?? L10n.string("后端执行失败。")))
+                )
             }
         } catch {
             NSLog("FreeCommunication bad backend response: %@", String(data: line, encoding: .utf8) ?? "<binary>")

@@ -4,7 +4,7 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="FreeCommunication"
 BUNDLE_ID="com.scorpiodai.FreeCommunication"
-APP_VERSION="1.5.0"
+APP_VERSION="1.5.1"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -70,6 +70,11 @@ chmod +x "$APP_RESOURCES/Tools/ffmpeg"
 if [ -f "$ROOT_DIR/Resources/AppIcon.icns" ]; then
   cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
 fi
+for localization in "$ROOT_DIR"/Resources/*.lproj; do
+  if [ -d "$localization" ]; then
+    rsync -a --delete "$localization/" "$APP_RESOURCES/$(basename "$localization")/"
+  fi
+done
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -92,6 +97,13 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_VERSION</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>zh-Hans</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>zh-Hans</string>
+    <string>en</string>
+  </array>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSPrincipalClass</key>

@@ -75,4 +75,24 @@ final class ModelManagementTests: XCTestCase {
             currentFile: ""
         ).fractionCompleted, 0)
     }
+
+    func testTranscriptTypographyUsesOneBilingualScaleInEverySurface() {
+        XCTAssertEqual(TranscriptTypography.sourceSize(for: 24), 19.68, accuracy: 0.001)
+        XCTAssertEqual(TranscriptTypography.translationSize(for: 24), 22.56, accuracy: 0.001)
+    }
+
+    func testAudioLevelMeterDistinguishesSilenceFromSpeechLevelAudio() {
+        let silence = Data(count: 512 * MemoryLayout<Float>.size)
+        let speechSamples = [Float](repeating: 0.5, count: 512)
+        let speechPCM = speechSamples.withUnsafeBytes { Data($0) }
+
+        XCTAssertEqual(AudioLevelMeter.normalizedLevel(fromFloat32PCM: silence), 0)
+        XCTAssertGreaterThan(AudioLevelMeter.normalizedLevel(fromFloat32PCM: speechPCM), 0.8)
+    }
+
+    func testEnglishLocalizationCanBeLoadedWithoutRestarting() {
+        XCTAssertEqual(L10n.string("开始", language: .simplifiedChinese), "开始")
+        XCTAssertEqual(L10n.string("开始", language: .english), "Start")
+        XCTAssertEqual(L10n.string("视频模式", language: .english), "Video Mode")
+    }
 }

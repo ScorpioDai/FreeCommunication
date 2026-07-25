@@ -121,7 +121,11 @@ enum AudioArchiveService {
         if let found = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
             return found
         }
-        throw NSError(domain: "FreeCommunication", code: 70, userInfo: [NSLocalizedDescriptionKey: "找不到 ffmpeg，无法归档音频。"])
+        throw NSError(
+            domain: "FreeCommunication",
+            code: 70,
+            userInfo: [NSLocalizedDescriptionKey: L10n.string("找不到 ffmpeg，无法归档音频。")]
+        )
     }
 
     private static func run(_ executable: String, _ arguments: [String]) throws {
@@ -134,7 +138,7 @@ enum AudioArchiveService {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: errorData, encoding: .utf8) ?? "ffmpeg 执行失败。"
+            let message = String(data: errorData, encoding: .utf8) ?? L10n.string("ffmpeg 执行失败。")
             throw NSError(domain: "FreeCommunication", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: message])
         }
     }

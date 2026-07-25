@@ -68,12 +68,18 @@ struct SubtitlePanelView: View {
                         ForEach(appModel.currentSession.segments) { segment in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(segment.sourceText)
-                                    .font(.system(size: max(14, fontSize * 0.72)))
+                                    .font(.system(
+                                        size: TranscriptTypography.sourceSize(for: fontSize),
+                                        weight: .regular
+                                    ))
                                     .foregroundStyle(.white.opacity(0.72))
                                     .lineLimit(2)
                                 if !segment.translatedText.isEmpty {
                                     Text(segment.translatedText)
-                                        .font(.system(size: fontSize, weight: .semibold))
+                                        .font(.system(
+                                            size: TranscriptTypography.translationSize(for: fontSize),
+                                            weight: .medium
+                                        ))
                                         .foregroundStyle(.white)
                                         .lineLimit(3)
                                         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -113,9 +119,10 @@ struct SubtitlePanelView: View {
             RoundedRectangle(cornerRadius: 18)
                 .fill(Color.black.opacity(opacity))
         )
+        .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(alignment: .topTrailing) {
             if appModel.currentSession.segments.isEmpty {
-                Text("等待字幕")
+                Text(L10n.string("等待字幕"))
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.55))
                     .padding(14)
@@ -127,6 +134,7 @@ struct SubtitlePanelView: View {
                 isHovering = hover
             }
         }
+        .environment(\.locale, appModel.interfaceLanguage.locale)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -139,13 +147,13 @@ struct SubtitlePanelView: View {
     }
 
     private var controlBar: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 14) {
             Button {
                 appModel.toggleSubtitleWindow()
             } label: {
                 Image(systemName: "rectangle.on.rectangle.slash")
             }
-            .help("退出字幕模式")
+            .help(L10n.string("退出字幕模式"))
 
             if appModel.mode.capturesMicrophoneByDefault {
                 Button {
@@ -153,43 +161,65 @@ struct SubtitlePanelView: View {
                 } label: {
                     Image(systemName: appModel.microphoneEnabled ? "mic.fill" : "mic.slash.fill")
                 }
-                .help(appModel.microphoneEnabled ? "关闭麦克风" : "开启麦克风")
+            .help(L10n.string(appModel.microphoneEnabled ? "关闭麦克风" : "开启麦克风"))
             }
 
             Button {
                 appModel.toggleTranslation()
             } label: {
-                Image(systemName: appModel.translationEnabled
-                      ? "character.book.closed.fill"
-                      : "character.book.closed")
+                ZStack {
+                    Image(systemName: "translate")
+                    if !appModel.translationEnabled {
+                        Capsule()
+                            .fill(Color.red)
+                            .frame(width: 22, height: 2.5)
+                            .rotationEffect(.degrees(-45))
+                            .shadow(color: .black.opacity(0.9), radius: 0.5)
+                    }
+                }
+                .frame(width: 22, height: 20)
             }
-            .help(appModel.translationEnabled ? "关闭英译中" : "开启英译中")
+            .help(L10n.string(appModel.translationEnabled ? "关闭英译中" : "开启英译中"))
+            .accessibilityLabel(
+                L10n.string(appModel.translationEnabled ? "关闭英译中" : "开启英译中")
+            )
 
-            Label("英语", systemImage: "textformat")
+            Divider()
+                .frame(height: 18)
+
+            Text(L10n.string("原文：英语"))
             if appModel.translationEnabled {
-                Label("中文", systemImage: "character.book.closed")
+                Text(L10n.string("译文：中文"))
                     .transition(.opacity)
             }
 
+            Spacer(minLength: 8)
+
+            Image(systemName: "circle.lefthalf.filled")
+                .help(L10n.string("透明度"))
             Slider(value: $opacity, in: 0.35...0.95)
-                .frame(width: 130)
-                .help("透明度")
+                .frame(width: 90)
+                .help(L10n.string("透明度"))
 
+            Image(systemName: "textformat.size")
+                .help(L10n.string("字号"))
             Slider(value: $fontSize, in: 16...42)
-                .frame(width: 130)
-                .help("字号")
-
-            Spacer()
+                .frame(width: 90)
+                .help(L10n.string("字号"))
 
             Button {
                 appModel.isRunning ? appModel.stopSession() : appModel.startSession()
             } label: {
-                Label(appModel.isRunning ? "结束" : "开始", systemImage: appModel.isRunning ? "stop.fill" : "play.fill")
+                Label(
+                    L10n.string(appModel.isRunning ? "结束" : "开始"),
+                    systemImage: appModel.isRunning ? "stop.fill" : "play.fill"
+                )
             }
             .buttonStyle(.borderedProminent)
             .tint(appModel.isRunning ? .red : .green)
         }
         .buttonStyle(.borderless)
+        .font(.callout)
         .foregroundStyle(.white.opacity(0.86))
         .padding(.horizontal, 22)
         .padding(.vertical, 10)

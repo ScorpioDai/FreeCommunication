@@ -11,10 +11,10 @@ enum SidebarSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .live: "实时"
-        case .files: "音视频"
-        case .records: "记录"
-        case .settings: "设置"
+        case .live: L10n.string("实时")
+        case .files: L10n.string("音视频")
+        case .records: L10n.string("记录")
+        case .settings: L10n.string("设置")
         }
     }
 
@@ -37,17 +37,17 @@ enum CommunicationMode: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
-        case .call: "通话模式"
-        case .video: "视频模式"
-        case .field: "现场模式"
+        case .call: L10n.string("通话模式")
+        case .video: L10n.string("视频模式")
+        case .field: L10n.string("现场模式")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .call: "同时捕捉系统声音与麦克风"
-        case .video: "仅捕捉英语视频或会议外放声音"
-        case .field: "仅捕捉本机麦克风"
+        case .call: L10n.string("同时捕捉系统声音与麦克风")
+        case .video: L10n.string("仅捕捉英语视频或会议外放声音")
+        case .field: L10n.string("仅捕捉本机麦克风")
         }
     }
 
@@ -91,9 +91,9 @@ enum CopyScope: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .source: "复制原文"
-        case .translation: "复制译文"
-        case .bilingual: "复制原文+译文"
+        case .source: L10n.string("复制原文")
+        case .translation: L10n.string("复制译文")
+        case .bilingual: L10n.string("复制原文+译文")
         }
     }
 
@@ -210,18 +210,18 @@ enum BackendHealth: Equatable {
 
     var title: String {
         switch self {
-        case .unknown: "未检查"
-        case .checking: "检查中"
-        case .ready: "后端可用"
-        case .warning: "需要注意"
-        case .failed: "不可用"
+        case .unknown: L10n.string("未检查")
+        case .checking: L10n.string("检查中")
+        case .ready: L10n.string("后端可用")
+        case .warning: L10n.string("需要注意")
+        case .failed: L10n.string("不可用")
         }
     }
 
     var message: String {
         switch self {
-        case .unknown: "尚未检查模型与 Python 环境。"
-        case .checking: "正在检查模型目录、ffmpeg 与 Python 依赖。"
+        case .unknown: L10n.string("尚未检查模型与 Python 环境。")
+        case .checking: L10n.string("正在检查模型目录、ffmpeg 与 Python 依赖。")
         case .ready(let message), .warning(let message), .failed(let message):
             message
         }

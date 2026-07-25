@@ -22,6 +22,7 @@ final class LiveAudioCapture {
     private var activeMode: CommunicationMode?
     private var callback: ((CapturedChunk) -> Void)?
     private var pcmCallback: ((CapturedPCMChunk) -> Void)?
+    private var levelCallback: ((SegmentChannel, Double) -> Void)?
     private var directory: URL?
     private var chunkSeconds: TimeInterval = 6
     private var callVoiceProcessingEnabled = false
@@ -34,7 +35,8 @@ final class LiveAudioCapture {
         directory: URL,
         callVoiceProcessingEnabled: Bool,
         onChunk: ((CapturedChunk) -> Void)?,
-        onPCM: ((CapturedPCMChunk) -> Void)? = nil
+        onPCM: ((CapturedPCMChunk) -> Void)? = nil,
+        onLevel: ((SegmentChannel, Double) -> Void)? = nil
     ) async throws {
         if activeMode != nil {
             _ = await stop()
@@ -42,6 +44,7 @@ final class LiveAudioCapture {
         self.activeMode = mode
         self.callback = onChunk
         self.pcmCallback = onPCM
+        self.levelCallback = onLevel
         self.directory = directory
         self.chunkSeconds = chunkSeconds
         self.callVoiceProcessingEnabled = callVoiceProcessingEnabled
@@ -54,6 +57,8 @@ final class LiveAudioCapture {
                 self?.callback?(chunk)
             }, onPCM: { [weak self] packet in
                 self?.pcmCallback?(packet)
+            }, onLevel: { [weak self] channel, level in
+                self?.levelCallback?(channel, level)
             })
         }
 
@@ -63,6 +68,8 @@ final class LiveAudioCapture {
                 self?.callback?(chunk)
             }, onPCM: { [weak self] packet in
                 self?.pcmCallback?(packet)
+            }, onLevel: { [weak self] channel, level in
+                self?.levelCallback?(channel, level)
             })
         }
     }
@@ -76,6 +83,8 @@ final class LiveAudioCapture {
                     self?.callback?(chunk)
                 }, onPCM: { [weak self] packet in
                     self?.pcmCallback?(packet)
+                }, onLevel: { [weak self] channel, level in
+                    self?.levelCallback?(channel, level)
                 })
             }
         } else {
@@ -90,6 +99,7 @@ final class LiveAudioCapture {
         activeMode = nil
         callback = nil
         pcmCallback = nil
+        levelCallback = nil
         directory = nil
         callVoiceProcessingEnabled = false
         return chunks
@@ -263,6 +273,7 @@ final class MicrophoneChunkCapture {
     private var timer: DispatchSourceTimer?
     private var onChunk: ((CapturedChunk) -> Void)?
     private var onPCM: ((CapturedPCMChunk) -> Void)?
+    private var onLevel: ((SegmentChannel, Double) -> Void)?
     private(set) var isRunning = false
 
     func start(
@@ -270,48 +281,66 @@ final class MicrophoneChunkCapture {
         directory: URL,
         voiceProcessingEnabled: Bool = false,
         onChunk: ((CapturedChunk) -> Void)?,
-        onPCM: ((CapturedPCMChunk) -> Void)? = nil
+        onPCM: ((CapturedPCMChunk) -> Void)? = nil,
+        onLevel: ((SegmentChannel, Double) -> Void)? = nil
     ) async throws {
         guard !isRunning else { return }
         self.onChunk = onChunk
         self.onPCM = onPCM
+        self.onLevel = onLevel
 
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         guard granted else {
-            throw NSError(domain: "FreeCommunication", code: 20, userInfo: [NSLocalizedDescriptionKey: "麦克风权限未开启。"])
+            throw NSError(
+                domain: "FreeCommunication",
+                code: 20,
+                userInfo: [NSLocalizedDescriptionKey: L10n.string("麦克风权限未开启。")]
+            )
         }
 
         let input = engine.inputNode
         do {
-            try input.setVoiceProcessingEnabled(voiceProcessingEnabled)
+            if input.isVoiceProcessingEnabled != voiceProcessingEnabled {
+                try input.setVoiceProcessingEnabled(voiceProcessingEnabled)
+            }
             if voiceProcessingEnabled {
                 NSLog("FreeCommunication microphone voice processing enabled.")
             }
         } catch {
             NSLog("FreeCommunication microphone voice processing unavailable: %@", error.localizedDescription)
         }
-        let format = input.outputFormat(forBus: 0)
-        try openNewFile(directory: directory, format: format)
 
-        input.installTap(onBus: 0, bufferSize: 8192, format: format) { [weak self] buffer, _ in
+        // Let AVAudioEngine choose the hardware-compatible tap format. The
+        // explicit output format can be stale after voice-processing changes.
+        input.installTap(onBus: 0, bufferSize: 8192, format: nil) { [weak self] buffer, _ in
             guard let self else { return }
-            lock.lock()
-            let file = currentFile
-            lock.unlock()
+            let file = currentFileOrOpen(directory: directory, format: buffer.format)
             try? file?.write(from: buffer)
-            if let data = pcmConverter.data(from: buffer),
-               let packet = pcmAccumulator.append(data, capturedAt: Date(), channel: .microphone) {
-                onPCM?(packet)
+            if let data = pcmConverter.data(from: buffer) {
+                onLevel?(.microphone, AudioLevelMeter.normalizedLevel(fromFloat32PCM: data))
+                if let packet = pcmAccumulator.append(data, capturedAt: Date(), channel: .microphone) {
+                    onPCM?(packet)
+                }
             }
         }
 
-        try engine.start()
+        do {
+            engine.prepare()
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            try? input.setVoiceProcessingEnabled(false)
+            self.onChunk = nil
+            self.onPCM = nil
+            self.onLevel = nil
+            throw error
+        }
         isRunning = true
 
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now() + chunkSeconds, repeating: chunkSeconds)
         timer.setEventHandler { [weak self] in
-            self?.rotate(directory: directory, format: format)
+            self?.rotate()
         }
         timer.resume()
         self.timer = timer
@@ -328,28 +357,46 @@ final class MicrophoneChunkCapture {
         if let packet = pcmAccumulator.finish(channel: .microphone) {
             onPCM?(packet)
         }
+        onLevel?(.microphone, 0)
+        onChunk = nil
         onPCM = nil
+        onLevel = nil
         return finishCurrent()
     }
 
-    private func rotate(directory: URL, format: AVAudioFormat) {
+    private func rotate() {
         let chunks = finishCurrent()
         for chunk in chunks {
             DispatchQueue.main.async { [onChunk] in onChunk?(chunk) }
         }
-        try? openNewFile(directory: directory, format: format)
     }
 
-    private func openNewFile(directory: URL, format: AVAudioFormat) throws {
+    private func currentFileOrOpen(directory: URL, format: AVAudioFormat) -> AVAudioFile? {
+        lock.lock()
+        if let currentFile {
+            lock.unlock()
+            return currentFile
+        }
+        lock.unlock()
+
         let url = directory
             .appendingPathComponent("mic-\(UUID().uuidString)")
             .appendingPathExtension("caf")
-        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        guard let file = try? AVAudioFile(forWriting: url, settings: format.settings) else {
+            return nil
+        }
+
         lock.lock()
+        if let currentFile {
+            lock.unlock()
+            try? FileManager.default.removeItem(at: url)
+            return currentFile
+        }
         currentFile = file
         currentURL = url
         currentStartedAt = Date()
         lock.unlock()
+        return file
     }
 
     private func finishCurrent() -> [CapturedChunk] {
@@ -377,6 +424,7 @@ final class SystemAudioChunkCapture: NSObject, SCStreamOutput, SCStreamDelegate 
     private var timer: DispatchSourceTimer?
     private var onChunk: ((CapturedChunk) -> Void)?
     private var onPCM: ((CapturedPCMChunk) -> Void)?
+    private var onLevel: ((SegmentChannel, Double) -> Void)?
     private var directory: URL?
     private var isRunning = false
     private var sampleBufferCount = 0
@@ -388,16 +436,22 @@ final class SystemAudioChunkCapture: NSObject, SCStreamOutput, SCStreamDelegate 
         chunkSeconds: TimeInterval,
         directory: URL,
         onChunk: ((CapturedChunk) -> Void)?,
-        onPCM: ((CapturedPCMChunk) -> Void)? = nil
+        onPCM: ((CapturedPCMChunk) -> Void)? = nil,
+        onLevel: ((SegmentChannel, Double) -> Void)? = nil
     ) async throws {
         guard !isRunning else { return }
         self.onChunk = onChunk
         self.onPCM = onPCM
+        self.onLevel = onLevel
         self.directory = directory
 
         let content = try await SCShareableContent.current
         guard let display = content.displays.first else {
-            throw NSError(domain: "FreeCommunication", code: 30, userInfo: [NSLocalizedDescriptionKey: "没有可捕捉的显示器。"])
+            throw NSError(
+                domain: "FreeCommunication",
+                code: 30,
+                userInfo: [NSLocalizedDescriptionKey: L10n.string("没有可捕捉的显示器。")]
+            )
         }
 
         let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
@@ -444,8 +498,10 @@ final class SystemAudioChunkCapture: NSObject, SCStreamOutput, SCStreamDelegate 
         if let packet = pcmAccumulator.finish(channel: .system) {
             onPCM?(packet)
         }
+        onLevel?(.system, 0)
         onChunk = nil
         onPCM = nil
+        onLevel = nil
         directory = nil
         return await withCheckedContinuation { continuation in
             queue.async { [weak self] in
@@ -461,9 +517,11 @@ final class SystemAudioChunkCapture: NSObject, SCStreamOutput, SCStreamDelegate 
         sampleBufferCount += 1
         logFormatIfNeeded(sampleBuffer)
         if let buffer = SampleBufferPCM.pcmBuffer(from: sampleBuffer),
-           let data = pcmConverter.data(from: buffer),
-           let packet = pcmAccumulator.append(data, capturedAt: Date(), channel: .system) {
-            onPCM?(packet)
+           let data = pcmConverter.data(from: buffer) {
+            onLevel?(.system, AudioLevelMeter.normalizedLevel(fromFloat32PCM: data))
+            if let packet = pcmAccumulator.append(data, capturedAt: Date(), channel: .system) {
+                onPCM?(packet)
+            }
         }
         if writer == nil {
             openNewWriter()

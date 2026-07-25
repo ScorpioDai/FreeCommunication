@@ -7,6 +7,9 @@ OUTPUT="${TMPDIR:-/tmp}/freecommunication-core-logic-smoke"
 cd "$ROOT_DIR"
 /usr/bin/xcrun swiftc -parse-as-library \
   Support/Defaults.swift \
+  Support/Localization.swift \
+  Support/AudioLevelMeter.swift \
+  Support/TranscriptTypography.swift \
   Models/ModelManagement.swift \
   Services/ModelDownloadService.swift \
   script/core_logic_smoke.swift \

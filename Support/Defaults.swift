@@ -5,6 +5,7 @@ enum Defaults {
     static let subtitleFontSizeKey = "subtitleFontSize"
     static let liveChunkSecondsKey = "liveChunkSeconds"
     static let callVoiceProcessingKey = "callVoiceProcessingEnabled"
+    static let interfaceLanguageKey = "interfaceLanguage"
     private static let liveChunkMigrationKey = "liveChunkSecondsMigratedToV11"
 
     static let systemPythonPath = "/usr/bin/python3"
@@ -68,7 +69,8 @@ enum Defaults {
             subtitleOpacityKey: 0.74,
             subtitleFontSizeKey: 24.0,
             liveChunkSecondsKey: 3.0,
-            callVoiceProcessingKey: false
+            callVoiceProcessingKey: false,
+            interfaceLanguageKey: InterfaceLanguage.simplifiedChinese.rawValue
         ])
 
         let defaults = UserDefaults.standard
