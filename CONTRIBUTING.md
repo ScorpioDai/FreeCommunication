@@ -4,7 +4,7 @@ Thank you for improving FreeCommunication.
 
 ## Before You Start
 
-- Use an Apple Silicon Mac and macOS 14 or newer.
+- Use an Apple Silicon Mac and macOS 15 or newer.
 - Install a Swift 6/Xcode toolchain, Python 3.10 or newer, and FFmpeg.
 - Read `README.md`, `LICENSE`, and `THIRD_PARTY_NOTICES.md`.
 - Do not commit model weights, `Backend/.venv`, build products, recordings,

@@ -362,6 +362,7 @@ struct TranscriptListView: View {
     let fontSize: Double
     @State private var shouldAutoScroll = true
     @State private var isAtBottom = true
+    @State private var userHasTakenScrollControl = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -377,10 +378,10 @@ struct TranscriptListView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .background(
-                ScrollStateObserver(isAtBottom: $isAtBottom) { userReachedBottom in
-                    shouldAutoScroll = userReachedBottom
-                }
+            .autoFollowScrollState(
+                isEnabled: $shouldAutoScroll,
+                isAtBottom: $isAtBottom,
+                userHasTakenControl: $userHasTakenScrollControl
             )
             .onAppear {
                 scrollToBottom(proxy)

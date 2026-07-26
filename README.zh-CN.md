@@ -8,7 +8,7 @@
   </p>
   <p>
     <img alt="版本 1.5.2" src="https://img.shields.io/badge/版本-1.5.2-1677ff">
-    <img alt="macOS 14 或更高版本" src="https://img.shields.io/badge/macOS-14%2B-111111">
+    <img alt="macOS 15 或更高版本" src="https://img.shields.io/badge/macOS-15%2B-111111">
     <img alt="需要 Apple 芯片" src="https://img.shields.io/badge/Apple%20芯片-必须-34c759">
     <img alt="PolyForm 非商用许可" src="https://img.shields.io/badge/许可-PolyForm%20非商用-ff3b30">
   </p>
@@ -131,7 +131,7 @@ SRT 会把长段文本拆成更适合观看的短字幕，并细化每条字幕�
 ### 最低要求
 
 - Apple 芯片 Mac。发行版不支持 Intel Mac。
-- macOS 14 或更高版本。
+- macOS 15 或更高版本。
 - 建议至少预留约 5 GB 磁盘空间，用于 App、两个完整模型仓库、下载中的临时文件和
   处理文件。
 - 通话模式、现场模式需要麦克风权限。
@@ -151,7 +151,7 @@ SRT 会把长段文本拆成更适合观看的短字幕，并细化每条字幕�
 - macOS 26。
 - ASR 使用 MLX/Metal，NMT 使用 CPU。
 
-macOS 26 是当前主要实际测试系统。App 的最低部署目标为 macOS 14，但中间所有系统版本
+macOS 26 是当前主要实际测试系统。App 的最低部署目标为 macOS 15，但中间所有系统版本
 和不同 M 系列芯片组合并未获得完全相同强度的人工测试。
 
 ## 安装 App
@@ -315,7 +315,7 @@ macOS 权限和当前音频设备影响。
 - 实验性通话回声消除可能降低麦克风灵敏度。
 - 公共 DMG 尚未进行 Developer ID 签名和 Apple 公证。
 - 模型效果、偏差和允许用途以各上游模型条款为准。
-- 不支持 Intel Mac 和 macOS 14 以前的系统。
+- 不支持 Intel Mac 和 macOS 15 以前的系统。
 
 ## 参与贡献
 

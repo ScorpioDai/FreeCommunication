@@ -8,7 +8,7 @@
   </p>
   <p>
     <img alt="Version 1.5.2" src="https://img.shields.io/badge/version-1.5.2-1677ff">
-    <img alt="macOS 14 or newer" src="https://img.shields.io/badge/macOS-14%2B-111111">
+    <img alt="macOS 15 or newer" src="https://img.shields.io/badge/macOS-15%2B-111111">
     <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-required-34c759">
     <img alt="PolyForm Noncommercial 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-ff3b30">
   </p>
@@ -140,7 +140,7 @@ than the live streaming session.
 ### Minimum
 
 - Apple Silicon Mac. Intel Macs are not supported by the distributed build.
-- macOS 14 or newer.
+- macOS 15 or newer.
 - About 5 GB of free disk space for the app, both complete model repositories,
   downloads in progress, and working files.
 - Microphone permission for Call and Field Modes.
@@ -161,7 +161,7 @@ than the live streaming session.
 - macOS 26.
 - ASR on MLX/Metal and NMT on CPU.
 
-macOS 26 is the primary tested system. The app declares macOS 14 as its minimum
+macOS 26 is the primary tested system. The app declares macOS 15 as its minimum
 deployment target, but not every intermediate OS and hardware combination has
 received the same amount of hands-on testing.
 

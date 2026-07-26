@@ -19,7 +19,7 @@ if [ ! -d "$SOURCE_DIR" ]; then
 fi
 
 cd "$SOURCE_DIR"
-export MACOSX_DEPLOYMENT_TARGET=14.0
+export MACOSX_DEPLOYMENT_TARGET=15.0
 ./configure \
   --prefix="$INSTALL_DIR" \
   --cc=clang \
@@ -34,8 +34,8 @@ export MACOSX_DEPLOYMENT_TARGET=14.0
   --disable-network \
   --disable-autodetect \
   --disable-avdevice \
-  --extra-cflags='-mmacosx-version-min=14.0' \
-  --extra-ldflags='-mmacosx-version-min=14.0' \
+  --extra-cflags='-mmacosx-version-min=15.0' \
+  --extra-ldflags='-mmacosx-version-min=15.0' \
   --install-name-dir='@rpath'
 make -j"$(sysctl -n hw.ncpu)"
 make install

@@ -6,7 +6,7 @@ let package = Package(
     name: "FreeCommunication",
     defaultLocalization: "zh-Hans",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .executable(name: "FreeCommunication", targets: ["FreeCommunication"])

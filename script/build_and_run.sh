@@ -5,7 +5,7 @@ MODE="${1:-run}"
 APP_NAME="FreeCommunication"
 BUNDLE_ID="com.scorpiodai.FreeCommunication"
 APP_VERSION="1.5.2"
-MIN_SYSTEM_VERSION="14.0"
+MIN_SYSTEM_VERSION="15.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"

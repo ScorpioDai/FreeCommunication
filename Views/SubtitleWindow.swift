@@ -70,6 +70,7 @@ struct SubtitlePanelView: View {
     @State private var isHovering = false
     @State private var shouldAutoScroll = true
     @State private var isAtBottom = true
+    @State private var userHasTakenScrollControl = false
 
     var body: some View {
         VStack(spacing: 2) {
@@ -126,10 +127,10 @@ struct SubtitlePanelView: View {
                     .padding(.bottom, 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .background(
-                    ScrollStateObserver(isAtBottom: $isAtBottom) { userReachedBottom in
-                        shouldAutoScroll = userReachedBottom
-                    }
+                .autoFollowScrollState(
+                    isEnabled: $shouldAutoScroll,
+                    isAtBottom: $isAtBottom,
+                    userHasTakenControl: $userHasTakenScrollControl
                 )
                 .onChange(of: appModel.currentSession.segments.count) {
                     scrollToBottom(proxy)
