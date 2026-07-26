@@ -74,7 +74,7 @@ struct SubtitlePanelView: View {
             subtitleSurface
 
             controlBar
-                .frame(height: 44)
+                .frame(height: 40)
                 .opacity(isHovering ? 1 : 0)
                 .offset(y: isHovering ? 0 : -4)
                 .allowsHitTesting(isHovering)
@@ -117,7 +117,8 @@ struct SubtitlePanelView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(ScrollStateObserver(isAtBottom: $isAtBottom))
@@ -245,7 +246,7 @@ struct SubtitlePanelView: View {
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
-            .frame(height: 28)
+            .frame(height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(
