@@ -62,6 +62,8 @@ final class SubtitleWindowController: NSWindowController, NSWindowDelegate {
 }
 
 struct SubtitlePanelView: View {
+    private static let bottomAnchorID = "subtitle-scroll-bottom"
+
     @EnvironmentObject private var appModel: AppModel
     @AppStorage(Defaults.subtitleOpacityKey) private var opacity = 0.74
     @AppStorage(Defaults.subtitleFontSizeKey) private var fontSize = 24.0
@@ -115,15 +117,24 @@ struct SubtitlePanelView: View {
                             .animation(.easeInOut(duration: 0.2), value: segment.translatedText)
                             .id(segment.id)
                         }
+                        Color.clear
+                            .frame(height: 1)
+                            .id(Self.bottomAnchorID)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 16)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .background(ScrollStateObserver(isAtBottom: $isAtBottom))
+                .background(
+                    ScrollStateObserver(isAtBottom: $isAtBottom) { userReachedBottom in
+                        shouldAutoScroll = userReachedBottom
+                    }
+                )
                 .onChange(of: isAtBottom) {
-                    shouldAutoScroll = isAtBottom
+                    if isAtBottom {
+                        shouldAutoScroll = true
+                    }
                 }
                 .onChange(of: appModel.currentSession.segments.count) {
                     scrollToBottom(proxy)
@@ -152,10 +163,15 @@ struct SubtitlePanelView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        guard shouldAutoScroll, let last = appModel.currentSession.segments.last else { return }
+        guard shouldAutoScroll, !appModel.currentSession.segments.isEmpty else { return }
         DispatchQueue.main.async {
+            guard shouldAutoScroll else { return }
             withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(last.id, anchor: .bottom)
+                proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+            }
+            DispatchQueue.main.async {
+                guard shouldAutoScroll else { return }
+                proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
             }
         }
     }

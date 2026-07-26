@@ -3,9 +3,10 @@ import SwiftUI
 
 struct ScrollStateObserver: NSViewRepresentable {
     @Binding var isAtBottom: Bool
+    var onUserScroll: ((Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(isAtBottom: $isAtBottom)
+        Coordinator(isAtBottom: $isAtBottom, onUserScroll: onUserScroll)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -18,6 +19,7 @@ struct ScrollStateObserver: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.isAtBottom = $isAtBottom
+        context.coordinator.onUserScroll = onUserScroll
         DispatchQueue.main.async {
             context.coordinator.attach(to: nsView.enclosingScrollView)
         }
@@ -25,33 +27,45 @@ struct ScrollStateObserver: NSViewRepresentable {
 
     final class Coordinator {
         var isAtBottom: Binding<Bool>
+        var onUserScroll: ((Bool) -> Void)?
         private weak var scrollView: NSScrollView?
-        private var observer: NSObjectProtocol?
+        private var observers: [NSObjectProtocol] = []
 
-        init(isAtBottom: Binding<Bool>) {
+        init(isAtBottom: Binding<Bool>, onUserScroll: ((Bool) -> Void)?) {
             self.isAtBottom = isAtBottom
+            self.onUserScroll = onUserScroll
         }
 
         deinit {
-            if let observer {
+            for observer in observers {
                 NotificationCenter.default.removeObserver(observer)
             }
         }
 
         func attach(to scrollView: NSScrollView?) {
             guard let scrollView, self.scrollView !== scrollView else { return }
-            if let observer {
+            for observer in observers {
                 NotificationCenter.default.removeObserver(observer)
             }
+            observers.removeAll()
             self.scrollView = scrollView
             scrollView.contentView.postsBoundsChangedNotifications = true
-            observer = NotificationCenter.default.addObserver(
+            observers.append(NotificationCenter.default.addObserver(
                 forName: NSView.boundsDidChangeNotification,
                 object: scrollView.contentView,
                 queue: .main
             ) { [weak self] _ in
                 self?.updateState()
-            }
+            })
+            observers.append(NotificationCenter.default.addObserver(
+                forName: NSScrollView.didLiveScrollNotification,
+                object: scrollView,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                updateState()
+                onUserScroll?(isAtBottom.wrappedValue)
+            })
             updateState()
         }
 
