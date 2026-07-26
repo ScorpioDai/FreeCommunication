@@ -382,11 +382,6 @@ struct TranscriptListView: View {
                     shouldAutoScroll = userReachedBottom
                 }
             )
-            .onChange(of: isAtBottom) {
-                if isAtBottom {
-                    shouldAutoScroll = true
-                }
-            }
             .onAppear {
                 scrollToBottom(proxy)
             }

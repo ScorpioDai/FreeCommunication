@@ -131,11 +131,6 @@ struct SubtitlePanelView: View {
                         shouldAutoScroll = userReachedBottom
                     }
                 )
-                .onChange(of: isAtBottom) {
-                    if isAtBottom {
-                        shouldAutoScroll = true
-                    }
-                }
                 .onChange(of: appModel.currentSession.segments.count) {
                     scrollToBottom(proxy)
                 }

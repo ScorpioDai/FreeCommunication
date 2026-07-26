@@ -30,6 +30,8 @@ struct ScrollStateObserver: NSViewRepresentable {
         var onUserScroll: ((Bool) -> Void)?
         private weak var scrollView: NSScrollView?
         private var observers: [NSObjectProtocol] = []
+        private var eventMonitor: Any?
+        private var userIsInteracting = false
 
         init(isAtBottom: Binding<Bool>, onUserScroll: ((Bool) -> Void)?) {
             self.isAtBottom = isAtBottom
@@ -40,6 +42,9 @@ struct ScrollStateObserver: NSViewRepresentable {
             for observer in observers {
                 NotificationCenter.default.removeObserver(observer)
             }
+            if let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+            }
         }
 
         func attach(to scrollView: NSScrollView?) {
@@ -48,6 +53,9 @@ struct ScrollStateObserver: NSViewRepresentable {
                 NotificationCenter.default.removeObserver(observer)
             }
             observers.removeAll()
+            if let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+            }
             self.scrollView = scrollView
             scrollView.contentView.postsBoundsChangedNotifications = true
             observers.append(NotificationCenter.default.addObserver(
@@ -66,15 +74,41 @@ struct ScrollStateObserver: NSViewRepresentable {
                 updateState()
                 onUserScroll?(reachedBottom())
             })
+            eventMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.scrollWheel, .leftMouseDown, .leftMouseDragged, .leftMouseUp]
+            ) { [weak self] event in
+                self?.handleUserInput(event)
+                return event
+            }
             updateState()
         }
 
         private func handleBoundsChange() {
             updateState()
-            guard let event = NSApp.currentEvent else { return }
-            switch event.type {
-            case .scrollWheel, .leftMouseDown, .leftMouseDragged:
+            if userIsInteracting {
                 onUserScroll?(reachedBottom())
+            }
+        }
+
+        private func handleUserInput(_ event: NSEvent) {
+            guard let scrollView, event.window === scrollView.window else { return }
+            let location = scrollView.convert(event.locationInWindow, from: nil)
+
+            switch event.type {
+            case .scrollWheel:
+                guard scrollView.bounds.contains(location) else { return }
+                userIsInteracting = true
+                onUserScroll?(false)
+            case .leftMouseDown, .leftMouseDragged:
+                guard let scroller = scrollView.verticalScroller,
+                      !scroller.isHidden,
+                      scroller.frame.contains(location) else { return }
+                userIsInteracting = true
+                onUserScroll?(false)
+            case .leftMouseUp:
+                guard userIsInteracting else { return }
+                onUserScroll?(reachedBottom())
+                userIsInteracting = false
             default:
                 break
             }
