@@ -115,19 +115,32 @@ struct ScrollStateObserver: NSViewRepresentable {
         }
 
         private func updateState() {
-            guard let scrollView, let documentView = scrollView.documentView else { return }
-            let visibleMaxY = scrollView.contentView.bounds.maxY
-            let contentHeight = documentView.bounds.height
-            let nearBottom = contentHeight - visibleMaxY < 36
+            guard let remainingDistance = remainingDistanceToBottom() else { return }
+            let nearBottom = remainingDistance < 36
             if isAtBottom.wrappedValue != nearBottom {
                 isAtBottom.wrappedValue = nearBottom
             }
         }
 
         private func reachedBottom() -> Bool {
-            guard let scrollView, let documentView = scrollView.documentView else { return true }
-            let remainingDistance = documentView.bounds.height - scrollView.contentView.bounds.maxY
+            if let scroller = scrollView?.verticalScroller {
+                if scroller.knobProportion >= 0.999 {
+                    return true
+                }
+                return scroller.doubleValue >= 0.999
+            }
+            guard let remainingDistance = remainingDistanceToBottom() else { return true }
             return remainingDistance <= 2
+        }
+
+        private func remainingDistanceToBottom() -> CGFloat? {
+            guard let scrollView, let documentView = scrollView.documentView else { return nil }
+            let visibleBounds = scrollView.contentView.bounds
+            let documentBounds = documentView.bounds
+            if documentView.isFlipped {
+                return max(0, documentBounds.maxY - visibleBounds.maxY)
+            }
+            return max(0, visibleBounds.minY - documentBounds.minY)
         }
     }
 }
