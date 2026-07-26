@@ -81,6 +81,18 @@ enum ModelInstallState: Equatable {
     }
 }
 
+enum ModelRuntimeState: Equatable {
+    case unavailable
+    case loading
+    case ready
+    case failed(String)
+
+    var isReady: Bool {
+        if case .ready = self { return true }
+        return false
+    }
+}
+
 struct LiveTranslationPolicy {
     private struct DisabledInterval {
         var start: TimeInterval

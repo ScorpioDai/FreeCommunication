@@ -24,8 +24,9 @@ Current preserved version: **1.5.2**
 The first model provides streaming English ASR on MLX/Metal. The second provides
 English-to-Chinese translation through PyTorch on CPU.
 
-Live streaming prefers sentence boundaries and applies stable 36-word or
-240-character paragraph caps when punctuation is absent. Ending a live session
+Installed models warm automatically at launch and remain resident. Live
+streaming groups up to three natural sentences and applies stable 64-word or
+420-character paragraph caps when punctuation is absent. Ending a live session
 also closes the floating subtitle window.
 
 ## User Data

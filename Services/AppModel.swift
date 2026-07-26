@@ -19,6 +19,7 @@ final class AppModel: ObservableObject {
     @Published var translationEnabled = true
     @Published var showMissingModelsAlert = false
     @Published private(set) var modelStates: [ManagedModel: ModelInstallState]
+    @Published private(set) var runtimeModelStates: [ManagedModel: ModelRuntimeState]
     @Published private(set) var waveformLevels = Array(repeating: 0.0, count: 90)
     @Published private(set) var interfaceLanguage: InterfaceLanguage
 
@@ -28,6 +29,7 @@ final class AppModel: ObservableObject {
     private var library: RecordingLibrary?
     private var processedChunks = Set<URL>()
     private var subtitleController: SubtitleWindowController?
+    private weak var mainWindowBeforeSubtitle: NSWindow?
     private var modelDownloadTasks: [ManagedModel: Task<Void, Never>] = [:]
     private var didCheckModelsOnLaunch = false
     private var liveStreamingActive = false
@@ -48,6 +50,11 @@ final class AppModel: ObservableObject {
         modelStates = Dictionary(
             uniqueKeysWithValues: ManagedModel.allCases.map {
                 ($0, $0.isInstalled ? .ready : .missing)
+            }
+        )
+        runtimeModelStates = Dictionary(
+            uniqueKeysWithValues: ManagedModel.allCases.map {
+                ($0, .unavailable)
             }
         )
         currentSession.title = L10n.string("实时转录", language: language)
@@ -100,6 +107,9 @@ final class AppModel: ObservableObject {
         guard !didCheckModelsOnLaunch else { return }
         didCheckModelsOnLaunch = true
         refreshModelStates()
+        Task { [weak self] in
+            await self?.preloadInstalledModels()
+        }
         if !allModelsInstalled {
             requestMissingModelsPrompt()
         }
@@ -108,12 +118,21 @@ final class AppModel: ObservableObject {
     func refreshModelStates() {
         for model in ManagedModel.allCases {
             guard modelStates[model]?.isDownloading != true else { continue }
-            modelStates[model] = model.isInstalled ? .ready : .missing
+            if model.isInstalled {
+                modelStates[model] = .ready
+            } else {
+                modelStates[model] = .missing
+                runtimeModelStates[model] = .unavailable
+            }
         }
     }
 
     func modelState(for model: ManagedModel) -> ModelInstallState {
         modelStates[model] ?? .checking
+    }
+
+    func runtimeModelState(for model: ManagedModel) -> ModelRuntimeState {
+        runtimeModelStates[model] ?? .unavailable
     }
 
     func requestMissingModelsPrompt() {
@@ -136,6 +155,9 @@ final class AppModel: ObservableObject {
         guard modelDownloadTasks[model] == nil else { return }
         if model.isInstalled {
             modelStates[model] = .ready
+            Task { [weak self] in
+                _ = await self?.preloadModel(model)
+            }
             return
         }
 
@@ -154,8 +176,11 @@ final class AppModel: ObservableObject {
                     throw ModelDownloadError.sizeMismatch(model.requiredFiles.joined(separator: ", "))
                 }
                 modelStates[model] = .ready
+                runtimeModelStates[model] = .unavailable
                 statusMessage = L10n.format("%@已安装", model.roleTitle)
                 backendHealth = .unknown
+                modelDownloadTasks[model] = nil
+                _ = await preloadModel(model)
             } catch is CancellationError {
                 modelStates[model] = model.isInstalled ? .ready : .missing
             } catch {
@@ -192,6 +217,7 @@ final class AppModel: ObservableObject {
         backendHealth = .checking
         Task {
             do {
+                try await ensureRuntimeModelsReady()
                 let response = try await backend.check(asrPath: asrPath, nmtPath: nmtPath, pythonPath: pythonPath)
                 let warnings = response.warnings ?? []
                 let message = response.message ?? L10n.string("模型目录和基础工具检查通过。")
@@ -214,7 +240,7 @@ final class AppModel: ObservableObject {
         currentSession = TranscriptSession(mode: mode, startedAt: Date(), title: "\(mode.title) \(TimeFormatter.recordingName())")
         isPreparingSession = true
         isEndingSession = false
-        statusMessage = L10n.string("正在加载语音识别与翻译模型...")
+        statusMessage = L10n.string("正在等待模型就绪...")
 
         let directory = Defaults.applicationSupportDirectory
             .appendingPathComponent("LiveChunks", isDirectory: true)
@@ -222,6 +248,7 @@ final class AppModel: ObservableObject {
 
         Task {
             do {
+                try await ensureRuntimeModelsReady()
                 let sessionID = currentSession.id.uuidString
                 streamingSessionID = sessionID
                 expectedStreamChannels = expectedChannels(for: mode, microphoneEnabled: microphoneEnabled)
@@ -378,6 +405,7 @@ final class AppModel: ObservableObject {
             : L10n.format("正在转录 %@", url.lastPathComponent)
         Task {
             do {
+                try await ensureRuntimeModelsReady()
                 let response = try await backend.transcribeFile(
                     inputURL: url,
                     asrPath: asrPath,
@@ -470,17 +498,30 @@ final class AppModel: ObservableObject {
         if subtitleWindowVisible {
             closeSubtitleWindow()
         } else {
+            let mainWindow = applicationMainWindow()
             let controller = SubtitleWindowController(appModel: self)
             controller.show()
             subtitleController = controller
             subtitleWindowVisible = true
+            mainWindowBeforeSubtitle = mainWindow
+            mainWindow?.orderOut(nil)
         }
     }
 
-    private func closeSubtitleWindow() {
+    func showMainWindow() {
+        let window = mainWindowBeforeSubtitle ?? applicationMainWindow()
+        window?.makeKeyAndOrderFront(nil)
+        mainWindowBeforeSubtitle = nil
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func closeSubtitleWindow(restoreMainWindow: Bool = true) {
         subtitleController?.close()
         subtitleController = nil
         subtitleWindowVisible = false
+        if restoreMainWindow {
+            showMainWindow()
+        }
     }
 
     private func processLiveChunk(_ chunk: CapturedChunk) async {
@@ -807,6 +848,83 @@ final class AppModel: ObservableObject {
 
     private var allModelsInstalled: Bool {
         ManagedModel.allCases.allSatisfy(\.isInstalled)
+    }
+
+    private func preloadInstalledModels() async {
+        for model in ManagedModel.allCases where model.isInstalled {
+            _ = await preloadModel(model)
+        }
+    }
+
+    private func preloadModel(_ model: ManagedModel) async -> Bool {
+        guard model.isInstalled else {
+            runtimeModelStates[model] = .unavailable
+            return false
+        }
+
+        switch runtimeModelState(for: model) {
+        case .ready:
+            return true
+        case .loading:
+            while runtimeModelState(for: model) == .loading {
+                guard !Task.isCancelled else { return false }
+                try? await Task.sleep(nanoseconds: 80_000_000)
+            }
+            return runtimeModelState(for: model).isReady
+        case .unavailable, .failed:
+            break
+        }
+
+        runtimeModelStates[model] = .loading
+        NSLog("FreeCommunication model warmup: started model=%@", model.rawValue)
+        do {
+            _ = try await backend.warmModel(
+                model,
+                asrPath: asrPath,
+                nmtPath: nmtPath,
+                pythonPath: pythonPath
+            )
+            runtimeModelStates[model] = .ready
+            NSLog("FreeCommunication model warmup: ready model=%@", model.rawValue)
+            return true
+        } catch {
+            runtimeModelStates[model] = .failed(error.localizedDescription)
+            statusMessage = L10n.format("%@加载失败：%@", model.roleTitle, error.localizedDescription)
+            NSLog(
+                "FreeCommunication model warmup: failed model=%@ error=%@",
+                model.rawValue,
+                error.localizedDescription
+            )
+            return false
+        }
+    }
+
+    private func ensureRuntimeModelsReady() async throws {
+        for model in ManagedModel.allCases {
+            guard await preloadModel(model) else {
+                let detail: String
+                if case .failed(let message) = runtimeModelState(for: model) {
+                    detail = message
+                } else {
+                    detail = L10n.string("模型文件不可用")
+                }
+                throw BackendClientError.backend(
+                    L10n.format("%@尚未就绪：%@", model.roleTitle, detail)
+                )
+            }
+        }
+    }
+
+    private func applicationMainWindow() -> NSWindow? {
+        if let mainWindowBeforeSubtitle {
+            return mainWindowBeforeSubtitle
+        }
+        if let mainWindow = NSApp.mainWindow, !(mainWindow is NSPanel) {
+            return mainWindow
+        }
+        return NSApp.windows.first {
+            !($0 is NSPanel) && $0.title == "FreeCommunication"
+        }
     }
 
     private func ensureModelsAvailable() -> Bool {

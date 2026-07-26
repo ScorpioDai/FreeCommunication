@@ -76,14 +76,15 @@ above the Dock. It can join all Spaces and appear over full-screen content.
 - Drag anywhere on the background to move it.
 - Resize the panel from its edges.
 - Hover to reveal microphone, translation, opacity, font-size, and end controls.
+- The main window hides automatically; use the window button in the hover
+  toolbar to show it without ending the session.
 - Scroll up to pause automatic following; return to the bottom to resume it.
 - English and Chinese use the same typography ratio as the normal transcript.
 - Ending the live session also closes the floating subtitle window.
 
-Live ASR prefers sentence-ending punctuation when creating a new paragraph. If
-the recognizer emits a long unpunctuated stream, FreeCommunication starts a new
-paragraph at a stable upper bound of 36 words or 240 characters. The text is
-split, never discarded.
+Live ASR groups up to three short natural sentences into a paragraph. A stable
+upper bound of 64 words or 420 characters still splits long unpunctuated speech,
+so the latest subtitle remains reachable without discarding text.
 
 ![Floating subtitle mode](docs/images/subtitle-mode.png)
 
@@ -197,7 +198,8 @@ does not require a Hugging Face account or access token.
 1. Start any live mode, or open **Settings → Models**.
 2. Accept the model-download prompt.
 3. Keep the app open while both progress indicators finish.
-4. Select **Check Backend** after both models show Ready.
+4. Watch the two model cards at the bottom of the sidebar change from gray to
+   yellow, then green. Select **Check Backend** after both show Ready.
 
 Interrupted downloads use `.part` files and resume when retried. The automatic
 installer mirrors each complete repository. The NMT repository therefore
@@ -229,15 +231,17 @@ the complete files into those exact folders. Required files are checked in
 
 ## Using A Live Session
 
-1. Select Call, Video, or Field Mode.
-2. Select **Start** and wait for the model-loading message to change to live
-   streaming status. Audio capture starts after model warm-up.
-3. Toggle Translation at any time. Existing translated segments remain visible;
+1. Launch the app. Installed ASR and NMT models begin warming automatically;
+   their sidebar cards turn green when resident.
+2. Select Call, Video, or Field Mode.
+3. Select **Start**. If warm-up is still running, FreeCommunication waits for
+   both cards to become ready before audio capture begins.
+4. Toggle Translation at any time. Existing translated segments remain visible;
    new segments switch smoothly between English-only and bilingual layouts.
-4. In Call Mode, use the microphone hot switch when needed.
-5. Copy the current original, translation, or bilingual transcript at any time.
-6. Enter Subtitle Mode for an unobtrusive overlay.
-7. Select **End**. The final streaming buffer is flushed, then the transcript
+5. In Call Mode, use the microphone hot switch when needed.
+6. Copy the current original, translation, or bilingual transcript at any time.
+7. Enter Subtitle Mode for an unobtrusive overlay.
+8. Select **End**. The final streaming buffer is flushed, then the transcript
    and captured audio are written without re-transcribing the whole meeting.
 
 The **live chunk** control in Settings ranges from 2 to 12 seconds and affects

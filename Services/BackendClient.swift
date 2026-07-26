@@ -60,6 +60,23 @@ final class BackendClient {
         )
     }
 
+    func warmModel(
+        _ model: ManagedModel,
+        asrPath: String,
+        nmtPath: String,
+        pythonPath: String
+    ) async throws -> BackendResponse {
+        try await request(
+            command: "warm_model",
+            payload: [
+                "model": model.rawValue,
+                "asr_model": asrPath,
+                "nmt_model": nmtPath
+            ],
+            pythonPath: pythonPath
+        )
+    }
+
     func transcribeFile(
         inputURL: URL,
         asrPath: String,
@@ -369,6 +386,17 @@ final class BackendClient {
            FileManager.default.isExecutableFile(atPath: bundledVenv.path) {
             return bundledVenv.path
         }
+
+        let projectVenv = projectRootURL()
+            .appendingPathComponent("Backend", isDirectory: true)
+            .appendingPathComponent(".venv", isDirectory: true)
+            .appendingPathComponent("bin", isDirectory: true)
+            .appendingPathComponent("python")
+        if configuredPath == Defaults.systemPythonPath,
+           FileManager.default.isExecutableFile(atPath: projectVenv.path) {
+            return projectVenv.path
+        }
+
         if FileManager.default.isExecutableFile(atPath: configuredPath) {
             return configuredPath
         }
@@ -378,11 +406,6 @@ final class BackendClient {
             return bundledVenv.path
         }
 
-        let projectVenv = projectRootURL()
-            .appendingPathComponent("Backend", isDirectory: true)
-            .appendingPathComponent(".venv", isDirectory: true)
-            .appendingPathComponent("bin", isDirectory: true)
-            .appendingPathComponent("python")
         if configuredPath == Defaults.defaultPythonPath,
            FileManager.default.isExecutableFile(atPath: projectVenv.path) {
             return projectVenv.path
@@ -392,9 +415,26 @@ final class BackendClient {
     }
 
     private func projectRootURL() -> URL {
-        URL(fileURLWithPath: #filePath)
+        let sourceRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+        let sourceScript = sourceRoot
+            .appendingPathComponent("Backend", isDirectory: true)
+            .appendingPathComponent("freecommunication_backend.py")
+        if FileManager.default.fileExists(atPath: sourceScript.path) {
+            return sourceRoot
+        }
+
+        let workingRoot = URL(
+            fileURLWithPath: FileManager.default.currentDirectoryPath,
+            isDirectory: true
+        )
+        let workingScript = workingRoot
+            .appendingPathComponent("Backend", isDirectory: true)
+            .appendingPathComponent("freecommunication_backend.py")
+        return FileManager.default.fileExists(atPath: workingScript.path)
+            ? workingRoot
+            : sourceRoot
     }
 
     private func bundledRuntimeURL() -> URL? {

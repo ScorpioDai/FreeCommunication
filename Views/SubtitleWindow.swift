@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-final class SubtitleWindowController: NSWindowController {
+final class SubtitleWindowController: NSWindowController, NSWindowDelegate {
     private weak var appModel: AppModel?
+    private static let minimumSize = CGSize(width: 900, height: 200)
 
     @MainActor
     init(appModel: AppModel) {
@@ -10,9 +11,9 @@ final class SubtitleWindowController: NSWindowController {
         let hosting = NSHostingController(rootView: SubtitlePanelView().environmentObject(appModel))
         hosting.sizingOptions = []
         let visibleFrame = NSScreen.main?.visibleFrame ?? .init(x: 0, y: 0, width: 1440, height: 900)
-        let width = max(820, min(1320, visibleFrame.width - 64))
-        let height: CGFloat = 240
-        let origin = CGPoint(x: visibleFrame.midX - width / 2, y: visibleFrame.minY + 28)
+        let width = max(900, min(1060, visibleFrame.width - 96))
+        let height: CGFloat = 228
+        let origin = CGPoint(x: visibleFrame.midX - width / 2, y: visibleFrame.minY + 10)
         let window = NSPanel(
             contentRect: CGRect(origin: origin, size: CGSize(width: width, height: height)),
             styleMask: [.borderless, .resizable],
@@ -29,9 +30,10 @@ final class SubtitleWindowController: NSWindowController {
         window.hidesOnDeactivate = false
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
-        window.minSize = CGSize(width: 720, height: 180)
-        window.contentMinSize = CGSize(width: 720, height: 180)
+        window.minSize = Self.minimumSize
+        window.contentMinSize = Self.minimumSize
         super.init(window: window)
+        window.delegate = self
     }
 
     @available(*, unavailable)
@@ -50,6 +52,13 @@ final class SubtitleWindowController: NSWindowController {
             appModel?.subtitleWindowVisible = false
         }
     }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        NSSize(
+            width: max(Self.minimumSize.width, frameSize.width),
+            height: max(Self.minimumSize.height, frameSize.height)
+        )
+    }
 }
 
 struct SubtitlePanelView: View {
@@ -61,7 +70,27 @@ struct SubtitlePanelView: View {
     @State private var isAtBottom = true
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: 6) {
+            subtitleSurface
+
+            controlBar
+                .frame(height: 48)
+                .opacity(isHovering ? 1 : 0)
+                .offset(y: isHovering ? 0 : -8)
+                .allowsHitTesting(isHovering)
+        }
+        .frame(minWidth: 900, minHeight: 200)
+        .contentShape(Rectangle())
+        .onHover { hover in
+            withAnimation(.easeOut(duration: 0.18)) {
+                isHovering = hover
+            }
+        }
+        .environment(\.locale, appModel.interfaceLanguage.locale)
+    }
+
+    private var subtitleSurface: some View {
+        ZStack(alignment: .topTrailing) {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
@@ -73,7 +102,6 @@ struct SubtitlePanelView: View {
                                         weight: .regular
                                     ))
                                     .foregroundStyle(.white.opacity(0.72))
-                                    .lineLimit(2)
                                 if !segment.translatedText.isEmpty {
                                     Text(segment.translatedText)
                                         .font(.system(
@@ -81,7 +109,6 @@ struct SubtitlePanelView: View {
                                             weight: .medium
                                         ))
                                         .foregroundStyle(.white)
-                                        .lineLimit(3)
                                         .transition(.opacity.combined(with: .move(edge: .top)))
                                 }
                             }
@@ -89,9 +116,8 @@ struct SubtitlePanelView: View {
                             .id(segment.id)
                         }
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 18)
-                    .padding(.bottom, isHovering ? 56 : 0)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(ScrollStateObserver(isAtBottom: $isAtBottom))
@@ -109,18 +135,6 @@ struct SubtitlePanelView: View {
                 }
             }
 
-            if isHovering {
-                controlBar
-                    .transition(.opacity)
-            }
-        }
-        .frame(minWidth: 720, minHeight: 180)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.black.opacity(opacity))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(alignment: .topTrailing) {
             if appModel.currentSession.segments.isEmpty {
                 Text(L10n.string("等待字幕"))
                     .font(.caption)
@@ -128,13 +142,12 @@ struct SubtitlePanelView: View {
                     .padding(14)
             }
         }
-        .contentShape(Rectangle())
-        .onHover { hover in
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isHovering = hover
-            }
-        }
-        .environment(\.locale, appModel.interfaceLanguage.locale)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.black.opacity(opacity))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -154,6 +167,13 @@ struct SubtitlePanelView: View {
                 Image(systemName: "rectangle.on.rectangle.slash")
             }
             .help(L10n.string("退出字幕模式"))
+
+            Button {
+                appModel.showMainWindow()
+            } label: {
+                Image(systemName: "macwindow")
+            }
+            .help(L10n.string("显示主界面"))
 
             if appModel.mode.capturesMicrophoneByDefault {
                 Button {
@@ -198,13 +218,13 @@ struct SubtitlePanelView: View {
             Image(systemName: "circle.lefthalf.filled")
                 .help(L10n.string("透明度"))
             Slider(value: $opacity, in: 0.35...0.95)
-                .frame(width: 90)
+                .frame(width: 70)
                 .help(L10n.string("透明度"))
 
             Image(systemName: "textformat.size")
                 .help(L10n.string("字号"))
             Slider(value: $fontSize, in: 16...42)
-                .frame(width: 90)
+                .frame(width: 70)
                 .help(L10n.string("字号"))
 
             Button {
@@ -221,9 +241,11 @@ struct SubtitlePanelView: View {
         .buttonStyle(.borderless)
         .font(.callout)
         .foregroundStyle(.white.opacity(0.86))
-        .padding(.horizontal, 22)
-        .padding(.vertical, 10)
-        .background(Color.black.opacity(0.82))
+        .padding(.horizontal, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.black.opacity(0.84))
+        )
         .animation(.easeInOut(duration: 0.18), value: appModel.translationEnabled)
     }
 }

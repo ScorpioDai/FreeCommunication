@@ -513,11 +513,13 @@ def coalesce_segments(
 
 def split_stream_segments(
     segments: List[Segment],
-    max_words: int = 36,
-    max_chars: int = 240,
-    natural_break_min_words: int = 12,
+    max_words: int = 64,
+    max_chars: int = 420,
+    natural_break_min_words: int = 24,
+    max_sentences: int = 3,
+    max_gap: float = 1.5,
 ) -> List[Segment]:
-    split: List[Segment] = []
+    pieces: List[tuple[Segment, int]] = []
     terminal_pattern = re.compile(r"[.!?。！？](?:[\"')\]}]+)?$")
 
     for segment in segments:
@@ -525,11 +527,6 @@ def split_stream_segments(
         words = compact.split()
         if not words:
             continue
-        if len(words) <= max_words and len(compact) <= max_chars:
-            segment.source_text = compact
-            split.append(segment)
-            continue
-
         boundaries: List[tuple[int, int]] = []
         cursor = 0
         while cursor < len(words):
@@ -544,15 +541,26 @@ def split_stream_segments(
                 char_end = index + 1
             hard_end = max(cursor + 1, char_end)
 
-            if hard_end < len(words):
-                search_start = min(cursor + natural_break_min_words, hard_end)
-                natural_ends = [
-                    index + 1
-                    for index in range(search_start - 1, hard_end)
-                    if terminal_pattern.search(words[index])
+            natural_ends = [
+                index + 1
+                for index in range(cursor, hard_end)
+                if terminal_pattern.search(words[index])
+            ]
+            sentence_cap_end = (
+                natural_ends[max_sentences - 1]
+                if len(natural_ends) >= max_sentences
+                else None
+            )
+            if sentence_cap_end is not None:
+                hard_end = sentence_cap_end
+            elif hard_end < len(words):
+                eligible_ends = [
+                    end
+                    for end in natural_ends
+                    if end - cursor >= natural_break_min_words
                 ]
-                if natural_ends:
-                    hard_end = natural_ends[-1]
+                if eligible_ends:
+                    hard_end = eligible_ends[-1]
 
             boundaries.append((cursor, hard_end))
             cursor = hard_end
@@ -565,17 +573,59 @@ def split_stream_segments(
             end_fraction = end_index / total_words
             chunk_start = segment.start + duration * start_fraction
             chunk_end = segment.start + duration * end_fraction if original_end is not None else None
-            split.append(
-                Segment(
-                    channel=segment.channel,
-                    speaker=segment.speaker,
-                    start=chunk_start,
-                    end=chunk_end,
-                    source_text=" ".join(words[start_index:end_index]),
+            chunk_text = " ".join(words[start_index:end_index])
+            sentence_count = max(
+                1,
+                sum(
+                    1
+                    for word in words[start_index:end_index]
+                    if terminal_pattern.search(word)
+                ),
+            )
+            pieces.append(
+                (
+                    Segment(
+                        channel=segment.channel,
+                        speaker=segment.speaker,
+                        start=chunk_start,
+                        end=chunk_end,
+                        source_text=chunk_text,
+                        translated_text=segment.translated_text if len(boundaries) == 1 else "",
+                    ),
+                    sentence_count,
                 )
             )
 
-    return split
+    grouped: List[Segment] = []
+    grouped_sentence_counts: List[int] = []
+    for piece, sentence_count in pieces:
+        if grouped:
+            previous = grouped[-1]
+            previous_end = previous.end if previous.end is not None else previous.start
+            piece_end = piece.end if piece.end is not None else piece.start
+            combined_text = join_source_text(previous.source_text, piece.source_text)
+            can_merge = (
+                previous.channel == piece.channel
+                and previous.speaker == piece.speaker
+                and piece.start - previous_end <= max_gap
+                and word_count(combined_text) <= max_words
+                and len(combined_text) <= max_chars
+                and grouped_sentence_counts[-1] + sentence_count <= max_sentences
+            )
+            if can_merge:
+                previous.end = max(previous_end, piece_end)
+                previous.source_text = combined_text
+                previous.translated_text = join_source_text(
+                    previous.translated_text,
+                    piece.translated_text,
+                )
+                grouped_sentence_counts[-1] += sentence_count
+                continue
+
+        grouped.append(piece)
+        grouped_sentence_counts.append(sentence_count)
+
+    return grouped
 
 
 class StreamingASRSession:
@@ -1168,6 +1218,19 @@ def handle_translate(payload: Dict[str, str], request_id: Optional[str]) -> Dict
     return ok(request_id, text=text, translation=translated)
 
 
+def handle_warm_model(payload: Dict[str, str], request_id: Optional[str]) -> Dict[str, Any]:
+    model = payload.get("model") or ""
+    if model == "asr":
+        asr_dir = require_path(payload.get("asr_model", ""), "ASR model")
+        load_asr_model(asr_dir)
+        return ok(request_id, model=model, message="ASR model is ready.")
+    if model == "nmt":
+        nmt_dir = require_path(payload.get("nmt_model", ""), "NMT model")
+        load_nmt_model(nmt_dir)
+        return ok(request_id, model=model, message="NMT model is ready.")
+    raise RuntimeError(f"Unknown model kind: {model}")
+
+
 def handle_transcribe_file(payload: Dict[str, str], request_id: Optional[str]) -> Dict[str, Any]:
     input_path = require_path(payload.get("input", ""), "Input media")
     asr_dir = require_path(payload.get("asr_model", ""), "ASR model")
@@ -1317,6 +1380,8 @@ def handle(request: Dict[str, Any]) -> Dict[str, Any]:
     try:
         if command == "check":
             return handle_check(payload, request_id)
+        if command == "warm_model":
+            return handle_warm_model(payload, request_id)
         if command == "translate":
             return handle_translate(payload, request_id)
         if command == "transcribe_file":

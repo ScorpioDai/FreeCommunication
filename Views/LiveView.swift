@@ -48,7 +48,6 @@ struct LiveView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            StatusPill(isRunning: appModel.isRunning, isPreparing: appModel.isPreparingSession)
         }
     }
 
@@ -190,7 +189,7 @@ struct LiveView: View {
             Button {
                 appModel.startSession()
             } label: {
-                Label(L10n.string(appModel.isPreparingSession ? "加载模型" : "开始"),
+                Label(L10n.string(appModel.isPreparingSession ? "等待模型" : "开始"),
                       systemImage: appModel.isPreparingSession ? "hourglass" : "play.fill")
                     .frame(minWidth: 110)
             }
@@ -306,39 +305,6 @@ struct ModeCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(isSelected ? mode.tint.opacity(0.65) : Color.clear, lineWidth: 1.5)
         }
-    }
-}
-
-struct StatusPill: View {
-    @EnvironmentObject private var appModel: AppModel
-    let isRunning: Bool
-    let isPreparing: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(indicatorColor)
-                .frame(width: 12, height: 12)
-                .shadow(color: indicatorColor.opacity(isRunning || isPreparing ? 0.4 : 0), radius: 8)
-            Text(statusText)
-                .font(.title3.weight(.medium))
-                .monospacedDigit()
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(.thinMaterial, in: Capsule())
-    }
-
-    private var indicatorColor: Color {
-        if isRunning { return .red }
-        if isPreparing { return .orange }
-        return .secondary
-    }
-
-    private var statusText: String {
-        if isRunning { return L10n.string("录制中", language: appModel.interfaceLanguage) }
-        if isPreparing { return L10n.string("加载中", language: appModel.interfaceLanguage) }
-        return L10n.string("待机", language: appModel.interfaceLanguage)
     }
 }
 

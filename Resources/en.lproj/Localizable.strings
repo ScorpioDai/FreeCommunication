@@ -169,3 +169,17 @@
 "仓库包含不安全的文件路径：%@" = "The repository contains an unsafe file path: %@";
 "模型文件下载失败：%@" = "Model download failed: %@";
 "下载后的文件大小不正确：%@" = "The downloaded file has an invalid size: %@";
+"正在等待模型就绪..." = "Waiting for models to become ready...";
+"%@加载失败：%@" = "%@ could not be loaded: %@";
+"模型文件不可用" = "Model files are unavailable";
+"%@尚未就绪：%@" = "%@ is not ready: %@";
+"正在检查模型" = "Checking model";
+"模型未下载" = "Model not downloaded";
+"正在下载 · %d%%" = "Downloading · %d%%";
+"模型下载失败" = "Model download failed";
+"等待模型加载" = "Waiting to load";
+"正在加载模型" = "Loading model";
+"模型已就绪" = "Model ready";
+"模型加载失败" = "Model load failed";
+"等待模型" = "Wait for Models";
+"显示主界面" = "Show Main Window";

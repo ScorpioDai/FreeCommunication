@@ -32,8 +32,6 @@ let package = Package(
                 "docs",
                 "ARCHIVING.md",
                 "PROJECT_NOTES.md",
-                "FreeCommunication-1.3.2-source.zip",
-                "FreeCommunication-1.3.2.app.zip",
                 "FreeCommunication.iconset"
             ],
             sources: [

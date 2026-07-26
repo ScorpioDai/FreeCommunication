@@ -19,8 +19,8 @@ struct FreeCommunicationApp: App {
                 .frame(minWidth: 1120, minHeight: 720)
                 .task {
                     appModel.attach(library: library)
-                    await library.reload()
                     appModel.checkModelsOnLaunch()
+                    await library.reload()
                 }
         }
         .commands {
