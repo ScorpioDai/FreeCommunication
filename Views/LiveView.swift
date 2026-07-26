@@ -356,6 +356,8 @@ struct EmptyTranscriptView: View {
 }
 
 struct TranscriptListView: View {
+    private static let bottomAnchorID = "transcript-scroll-bottom"
+
     let segments: [TranscriptSegment]
     let fontSize: Double
     @State private var shouldAutoScroll = true
@@ -369,12 +371,21 @@ struct TranscriptListView: View {
                         TranscriptSegmentView(segment: segment, fontSize: fontSize)
                             .id(segment.id)
                     }
+                    Color.clear
+                        .frame(height: 1)
+                        .id(Self.bottomAnchorID)
                 }
                 .padding(.vertical, 8)
             }
-            .background(ScrollStateObserver(isAtBottom: $isAtBottom))
+            .background(
+                ScrollStateObserver(isAtBottom: $isAtBottom) { userReachedBottom in
+                    shouldAutoScroll = userReachedBottom
+                }
+            )
             .onChange(of: isAtBottom) {
-                shouldAutoScroll = isAtBottom
+                if isAtBottom {
+                    shouldAutoScroll = true
+                }
             }
             .onAppear {
                 scrollToBottom(proxy)
@@ -386,12 +397,13 @@ struct TranscriptListView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        guard shouldAutoScroll, segments.last != nil else { return }
+        guard shouldAutoScroll, !segments.isEmpty else { return }
         DispatchQueue.main.async {
-            if let last = segments.last {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo(last.id, anchor: .bottom)
-                }
+            guard shouldAutoScroll else { return }
+            proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+            DispatchQueue.main.async {
+                guard shouldAutoScroll else { return }
+                proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
             }
         }
     }

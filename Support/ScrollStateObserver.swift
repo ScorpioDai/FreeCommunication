@@ -55,7 +55,7 @@ struct ScrollStateObserver: NSViewRepresentable {
                 object: scrollView.contentView,
                 queue: .main
             ) { [weak self] _ in
-                self?.updateState()
+                self?.handleBoundsChange()
             })
             observers.append(NotificationCenter.default.addObserver(
                 forName: NSScrollView.didLiveScrollNotification,
@@ -64,9 +64,20 @@ struct ScrollStateObserver: NSViewRepresentable {
             ) { [weak self] _ in
                 guard let self else { return }
                 updateState()
-                onUserScroll?(isAtBottom.wrappedValue)
+                onUserScroll?(reachedBottom())
             })
             updateState()
+        }
+
+        private func handleBoundsChange() {
+            updateState()
+            guard let event = NSApp.currentEvent else { return }
+            switch event.type {
+            case .scrollWheel, .leftMouseDown, .leftMouseDragged:
+                onUserScroll?(reachedBottom())
+            default:
+                break
+            }
         }
 
         private func updateState() {
@@ -77,6 +88,12 @@ struct ScrollStateObserver: NSViewRepresentable {
             if isAtBottom.wrappedValue != nearBottom {
                 isAtBottom.wrappedValue = nearBottom
             }
+        }
+
+        private func reachedBottom() -> Bool {
+            guard let scrollView, let documentView = scrollView.documentView else { return true }
+            let remainingDistance = documentView.bounds.height - scrollView.contentView.bounds.maxY
+            return remainingDistance <= 2
         }
     }
 }

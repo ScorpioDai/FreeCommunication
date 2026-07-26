@@ -166,9 +166,7 @@ struct SubtitlePanelView: View {
         guard shouldAutoScroll, !appModel.currentSession.segments.isEmpty else { return }
         DispatchQueue.main.async {
             guard shouldAutoScroll else { return }
-            withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
-            }
+            proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
             DispatchQueue.main.async {
                 guard shouldAutoScroll else { return }
                 proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
