@@ -70,13 +70,13 @@ struct SubtitlePanelView: View {
     @State private var isAtBottom = true
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 2) {
             subtitleSurface
 
             controlBar
-                .frame(height: 48)
+                .frame(height: 44)
                 .opacity(isHovering ? 1 : 0)
-                .offset(y: isHovering ? 0 : -8)
+                .offset(y: isHovering ? 0 : -4)
                 .allowsHitTesting(isHovering)
         }
         .frame(minWidth: 900, minHeight: 200)
@@ -105,7 +105,7 @@ struct SubtitlePanelView: View {
                                 if !segment.translatedText.isEmpty {
                                     Text(segment.translatedText)
                                         .font(.system(
-                                            size: TranscriptTypography.translationSize(for: fontSize),
+                                            size: TranscriptTypography.sourceSize(for: fontSize),
                                             weight: .medium
                                         ))
                                         .foregroundStyle(.white)
@@ -160,7 +160,7 @@ struct SubtitlePanelView: View {
     }
 
     private var controlBar: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             Button {
                 appModel.toggleSubtitleWindow()
             } label: {
@@ -169,11 +169,21 @@ struct SubtitlePanelView: View {
             .help(L10n.string("退出字幕模式"))
 
             Button {
-                appModel.showMainWindow()
+                appModel.toggleMainWindowVisibility()
             } label: {
-                Image(systemName: "macwindow")
+                ZStack {
+                    Image(systemName: "macwindow")
+                    if !appModel.mainWindowVisibleInSubtitle {
+                        DisabledSlash()
+                    }
+                }
+                .frame(width: 22, height: 20)
             }
-            .help(L10n.string("显示主界面"))
+            .help(
+                L10n.string(
+                    appModel.mainWindowVisibleInSubtitle ? "隐藏主界面" : "显示主界面"
+                )
+            )
 
             if appModel.mode.capturesMicrophoneByDefault {
                 Button {
@@ -190,11 +200,7 @@ struct SubtitlePanelView: View {
                 ZStack {
                     Image(systemName: "translate")
                     if !appModel.translationEnabled {
-                        Capsule()
-                            .fill(Color.red)
-                            .frame(width: 22, height: 2.5)
-                            .rotationEffect(.degrees(-45))
-                            .shadow(color: .black.opacity(0.9), radius: 0.5)
+                        DisabledSlash()
                     }
                 }
                 .frame(width: 22, height: 20)
@@ -217,15 +223,17 @@ struct SubtitlePanelView: View {
 
             Image(systemName: "circle.lefthalf.filled")
                 .help(L10n.string("透明度"))
-            Slider(value: $opacity, in: 0.35...0.95)
-                .frame(width: 70)
+            WedgeSlider(value: $opacity, range: 0.35...0.95)
+                .frame(width: 92)
                 .help(L10n.string("透明度"))
+                .accessibilityLabel(Text(L10n.string("透明度")))
 
             Image(systemName: "textformat.size")
                 .help(L10n.string("字号"))
-            Slider(value: $fontSize, in: 16...42)
-                .frame(width: 70)
+            WedgeSlider(value: $fontSize, range: 16...42)
+                .frame(width: 92)
                 .help(L10n.string("字号"))
+                .accessibilityLabel(Text(L10n.string("字号")))
 
             Button {
                 appModel.isRunning ? appModel.stopSession() : appModel.startSession()
@@ -235,17 +243,137 @@ struct SubtitlePanelView: View {
                     systemImage: appModel.isRunning ? "stop.fill" : "play.fill"
                 )
             }
-            .buttonStyle(.borderedProminent)
-            .tint(appModel.isRunning ? .red : .green)
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        appModel.isRunning
+                            ? Color.red.opacity(0.42)
+                            : Color.green.opacity(0.38)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        appModel.isRunning
+                            ? Color.red.opacity(0.55)
+                            : Color.green.opacity(0.48),
+                        lineWidth: 1
+                    )
+            )
         }
         .buttonStyle(.borderless)
         .font(.callout)
         .foregroundStyle(.white.opacity(0.86))
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color.black.opacity(0.84))
+                .fill(Color.black.opacity(opacity))
         )
         .animation(.easeInOut(duration: 0.18), value: appModel.translationEnabled)
+        .animation(.easeInOut(duration: 0.18), value: appModel.mainWindowVisibleInSubtitle)
+        .onHover { hover in
+            setPanelMovementEnabled(!hover)
+        }
+        .onDisappear {
+            setPanelMovementEnabled(true)
+        }
+    }
+
+    private func setPanelMovementEnabled(_ enabled: Bool) {
+        let panel = NSApp.windows.first { $0 is NSPanel && $0.isVisible }
+        panel?.isMovableByWindowBackground = enabled
+    }
+}
+
+private struct DisabledSlash: View {
+    var body: some View {
+        Capsule()
+            .fill(Color.white.opacity(0.72))
+            .frame(width: 23, height: 2.4)
+            .rotationEffect(.degrees(45))
+            .shadow(color: .black.opacity(0.7), radius: 0.5)
+    }
+}
+
+private struct WedgeSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+
+    private let knobDiameter: CGFloat = 14
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let usableWidth = max(1, width - knobDiameter)
+            let knobCenter = knobDiameter / 2 + usableWidth * fraction
+
+            ZStack(alignment: .leading) {
+                WedgeTrack()
+                    .fill(Color.white.opacity(0.18))
+
+                WedgeTrack()
+                    .fill(Color.white.opacity(0.48))
+                    .mask(alignment: .leading) {
+                        Rectangle()
+                            .frame(width: knobCenter)
+                    }
+
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: knobDiameter, height: knobDiameter)
+                    .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+                    .offset(x: knobCenter - knobDiameter / 2)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        let position = min(
+                            max(gesture.location.x - knobDiameter / 2, 0),
+                            usableWidth
+                        )
+                        setFraction(Double(position / usableWidth))
+                    }
+            )
+        }
+        .frame(height: 22)
+        .accessibilityElement()
+        .accessibilityValue(Text("\(Int(fraction * 100))%"))
+        .accessibilityAdjustableAction { direction in
+            let step = (range.upperBound - range.lowerBound) / 20
+            switch direction {
+            case .increment:
+                value = min(range.upperBound, value + step)
+            case .decrement:
+                value = max(range.lowerBound, value - step)
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    private var fraction: CGFloat {
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return 0 }
+        return CGFloat(min(max((value - range.lowerBound) / span, 0), 1))
+    }
+
+    private func setFraction(_ fraction: Double) {
+        value = range.lowerBound + fraction * (range.upperBound - range.lowerBound)
+    }
+}
+
+private struct WedgeTrack: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + 2))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - 2))
+        path.closeSubpath()
+        return path
     }
 }

@@ -75,7 +75,7 @@ above the Dock. It can join all Spaces and appear over full-screen content.
 
 - Drag anywhere on the background to move it.
 - Resize the panel from its edges.
-- Hover to reveal microphone, translation, opacity, font-size, and end controls.
+- Hover to reveal microphone, translation, main-window, wedge-style opacity/font-size, and end controls.
 - The main window hides automatically; use the window button in the hover
   toolbar to show it without ending the session.
 - Scroll up to pause automatic following; return to the bottom to resume it.

@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     @Published var statusMessage: String
     @Published var lastSavedURL: URL?
     @Published var subtitleWindowVisible = false
+    @Published private(set) var mainWindowVisibleInSubtitle = true
     @Published var translationEnabled = true
     @Published var showMissingModelsAlert = false
     @Published private(set) var modelStates: [ManagedModel: ModelInstallState]
@@ -505,14 +506,31 @@ final class AppModel: ObservableObject {
             subtitleWindowVisible = true
             mainWindowBeforeSubtitle = mainWindow
             mainWindow?.orderOut(nil)
+            mainWindowVisibleInSubtitle = false
+        }
+    }
+
+    func toggleMainWindowVisibility() {
+        if mainWindowVisibleInSubtitle {
+            hideMainWindow()
+        } else {
+            showMainWindow()
         }
     }
 
     func showMainWindow() {
         let window = mainWindowBeforeSubtitle ?? applicationMainWindow()
         window?.makeKeyAndOrderFront(nil)
-        mainWindowBeforeSubtitle = nil
+        mainWindowVisibleInSubtitle = true
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func hideMainWindow() {
+        guard subtitleWindowVisible else { return }
+        let window = mainWindowBeforeSubtitle ?? applicationMainWindow()
+        mainWindowBeforeSubtitle = window
+        window?.orderOut(nil)
+        mainWindowVisibleInSubtitle = false
     }
 
     private func closeSubtitleWindow(restoreMainWindow: Bool = true) {
